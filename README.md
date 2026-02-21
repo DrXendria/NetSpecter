@@ -1,137 +1,296 @@
-# 🛡️ NetSpecter — IDS/IPS Sistemi v2
+# 🛡️ NetSpecter — IDS/IPS Sistemi v2.0
 
-NetSpecter; Suricata + Python + iptables tabanlı, **gerçekten çalışan** IDS/IPS sistemi.
+Raspberry Pi üzerinde çalışan, **Suricata + Python + iptables** tabanlı gerçek zamanlı saldırı tespit ve önleme sistemi. Web dashboard, Telegram bildirimleri ve canlı log izleme özelliklerine sahiptir.
 
 ---
 
-## ⚡ Kurulum (3 adım)
+## 📋 İçindekiler
 
-```bash
-# 1. Dosyaları Raspberry Pi'ye kopyalayın, dizine girin
-cd ids_ips_v2/
+- [Özellikler](#özellikler)
+- [Sistem Mimarisi](#sistem-mimarisi)
+- [Gereksinimler](#gereksinimler)
+- [Kurulum](#kurulum)
+- [Kullanım](#kullanım)
+- [Web Dashboard](#web-dashboard)
+- [Telegram Bildirimleri](#telegram-bildirimleri)
+- [Yapılandırma](#yapılandırma)
+- [Dosya Yapısı](#dosya-yapısı)
+- [Tespit Edilen Saldırılar](#tespit-edilen-saldırılar)
 
-# 2. Kurulum scriptini çalıştırın
-sudo bash install.sh
+---
 
-# 3. Kendi IP'nizi whitelist'e ekleyin (ÇOK ÖNEMLİ!)
-sudo nano /opt/netspecter/config.py
-# 'whitelist' listesine '192.168.1.x' şeklinde kendi IP'nizi yazın
+## ✨ Özellikler
 
-# 4. Başlatın
-sudo systemctl start netspecter
-sudo journalctl -u netspecter -f
+- 🔍 **Gerçek zamanlı saldırı tespiti** — Suricata ile 48.000+ kural
+- 🚫 **Otomatik IP engelleme** — iptables ile anında blok
+- 📊 **Web dashboard** — canlı alert akışı, grafikler, engelli IP yönetimi
+- 📱 **Telegram bildirimleri** — DDoS ve kritik alertlerde anlık mesaj
+- 🖥️ **Tek komutla başlatma** — `sudo netspecter`
+- 🔐 **Login koruması** — dashboard şifre ile korunur
+- 🌐 **TR/EN dil desteği** — dashboard ve login sayfasında
+- ♻️ **Otomatik kural güncelleme** — her 24 saatte bir
+- 💾 **Kalıcı engel kaydı** — yeniden başlatmada engeller korunur
+
+---
+
+## 🏗️ Sistem Mimarisi
+
+```
+┌─────────────────────────────────────────────────────┐
+│                   sudo netspecter                    │
+└──────────┬──────────────┬──────────────┬────────────┘
+           │              │              │
+    ┌──────▼──────┐ ┌─────▼─────┐ ┌────▼────────┐
+    │  NetSpecter │ │ Dashboard │ │  Telegram   │
+    │   Servisi   │ │  :5000    │ │    Bot      │
+    └──────┬──────┘ └─────┬─────┘ └────┬────────┘
+           │              │             │
+    ┌──────▼──────────────▼─────────────▼────────┐
+    │              Suricata IDS Engine             │
+    │           eve.json  ←  Ağ trafiği           │
+    └──────────────────┬──────────────────────────┘
+                       │
+    ┌──────────────────▼──────────────────────────┐
+    │               monitor.py                     │
+    │         Alert sınıflandırma & eşik           │
+    └──────────────────┬──────────────────────────┘
+                       │
+    ┌──────────────────▼──────────────────────────┐
+    │               blocker.py                     │
+    │          iptables IDS_IPS zinciri            │
+    └─────────────────────────────────────────────┘
 ```
 
 ---
 
-## ✅ Her Şey Çalışıyor mu? Test Edin
+## 📦 Gereksinimler
+
+- Raspberry Pi (herhangi bir model, Raspberry Pi OS)
+- Python 3.9+
+- Suricata 7.x
+- iptables
+- Flask, Flask-SocketIO, requests
+
+---
+
+## 🚀 Kurulum
+
+### 1. Repoyu klonla
+
+```bash
+git clone https://github.com/kullanici/netspecter.git
+cd netspecter
+```
+
+### 2. Ortam değişkenlerini ayarla
+
+```bash
+cp .env.example .env
+nano .env
+```
+
+`.env` içeriği:
+```env
+TELEGRAM_BOT_TOKEN=buraya_bot_token
+TELEGRAM_CHAT_ID=buraya_chat_id
+```
+
+### 3. Kurulum scriptini çalıştır
+
+```bash
+sudo bash install.sh
+```
+
+Script şunları otomatik yapar:
+- Suricata kurulumu ve yapılandırması
+- Python bağımlılıklarının kurulumu
+- systemd servis kaydı
+- iptables zinciri oluşturma
+- `netspecter` ve `netspecter-manager` komutlarının eklenmesi
+
+### 4. Whitelist'i yapılandır
+
+```bash
+sudo nano /opt/netspecter/config.py
+```
+
+Kendi IP adresinizi ekleyin:
+```python
+'whitelist': [
+    '127.0.0.1',
+    '::1',
+    '192.168.1.x',  # Kendi IP'niz
+],
+```
+
+### 5. Kurulumu test et
 
 ```bash
 sudo python3 test_system.py
 ```
 
-Bu script sırasıyla şunları test eder:
-- Root yetkisi ✓
-- Suricata kurulu ve config geçerli ✓
-- Eve.json etkin ✓
-- iptables IDS_IPS zinciri kurulu ✓
-- Python modülleri import edilebilir ✓
-- Gerçek bir nmap alert'i parse edip IP'yi engelliyor ✓
-- Systemd servisi durumu ✓
+---
+
+## 🖥️ Kullanım
+
+### Sistemi başlat
+
+```bash
+sudo netspecter
+```
+
+Bu komut tek seferde şunları başlatır:
+1. **NetSpecter IDS/IPS servisi**
+2. **Web dashboard** (arka planda, port 5000)
+3. **Telegram botu** (arka planda, `.env` varsa)
+4. **Canlı log akışı** (terminalde)
+
+Terminali kapatmak log izlemeyi durdurur, servisler arka planda çalışmaya devam eder.
+
+### Servis yönetimi
+
+```bash
+sudo systemctl start   netspecter   # Başlat
+sudo systemctl stop    netspecter   # Durdur
+sudo systemctl restart netspecter   # Yeniden başlat
+sudo systemctl status  netspecter   # Durum
+```
+
+### IP yönetimi
+
+```bash
+sudo netspecter-manager list               # Engelli IP'leri listele
+sudo netspecter-manager stats              # İstatistikleri göster
+sudo netspecter-manager block 192.168.1.x  # Manuel engelle
+sudo netspecter-manager unblock 192.168.1.x # Engeli kaldır
+sudo netspecter-manager test               # Test alert oluştur
+```
 
 ---
 
-## 🔍 Nmap Taramasını Test Etme
+## 🌐 Web Dashboard
 
-```bash
-# Başka bir makineden (veya telefondan):
-nmap -sS -p 1-1000 <raspberry_pi_ip>
+Sistem başladıktan sonra tarayıcıdan erişin:
 
-# Pi üzerinde logları izleyin:
-sudo journalctl -u netspecter -f
+```
+http://<raspberry-pi-ip>:5000
+```
 
-# Beklenen çıktı:
-# [ALERT] 192.168.x.x → port 80 | nmap_scan | sev=2 | ET SCAN Nmap...
-# [ENGELLENDİ] 192.168.x.x | nmap_scan | ... | Süre: 60 dk | İhlal #1
+
+
+> ⚠️ Giriş bilgilerini değiştirmek için `dashboard.py` içindeki `DASHBOARD_USER` ve `DASHBOARD_PASS` değişkenlerini düzenleyin.
+
+Dashboard şunları gösterir:
+- Gerçek zamanlı alert akışı (Socket.IO)
+- Saldırı tipi dağılımı (doughnut chart)
+- Dakika bazlı alert zaman çizelgesi
+- Engellenen IP listesi ve engel kaldırma
+- Sistem istatistikleri
+
+---
+
+## 📱 Telegram Bildirimleri
+
+### Bot kurulumu
+
+1. Telegram'da `@BotFather`'a yaz → `/newbot` → token al
+2. `@userinfobot`'a yaz → Chat ID al
+3. `.env` dosyasına ekle:
+
+```env
+TELEGRAM_BOT_TOKEN=1234567890:ABCdef...
+TELEGRAM_CHAT_ID=123456789
+```
+
+### Bildirim koşulları
+
+| Durum | Açıklama |
+|-------|----------|
+| 🚨 DDoS | 60 sn içinde 10+ farklı IP'den saldırı |
+| 🔴 Kritik | Severity = 1 alertler |
+| 🟠 Yüksek | Severity = 2 alertler |
+
+Aynı IP için 5 dakika boyunca tekrar bildirim gönderilmez.
+
+---
+
+## ⚙️ Yapılandırma
+
+### `/opt/netspecter/config.py`
+
+```python
+CONFIG = {
+    'suricata': {
+        'interface': 'wlan0',               # Ağ arayüzü (eth0 veya wlan0)
+    },
+    'blocking': {
+        'block_duration': 3600,             # Geçici engel süresi (saniye)
+        'permanent_block_threshold': 5,     # Kalıcı engel için ihlal sayısı
+        'whitelist': ['127.0.0.1', '::1'],
+    },
+}
+```
+
+### `/opt/netspecter/.env`
+
+```env
+TELEGRAM_BOT_TOKEN=...
+TELEGRAM_CHAT_ID=...
+DDOS_TIME_WINDOW=60       # DDoS zaman penceresi (saniye)
+DDOS_MIN_IPS=10           # DDoS eşiği (farklı IP sayısı)
+NOTIFY_COOLDOWN=300       # Bildirim tekrar süresi (saniye)
 ```
 
 ---
 
 ## 📁 Dosya Yapısı
 
-| Dosya | Görev |
-|---|---|
-| `ids_ips.py` | Ana program — Suricata'yı başlatır, thread'leri yönetir |
-| `blocker.py` | iptables motoru — güvenli zincir kurulumu ve IP engelleme |
-| `monitor.py` | Eve.json tail — saldırı sınıflandırma ve aksiyon |
-| `reporter.py` | JSON rapor üretici |
-| `config.py` | Tüm ayarlar |
-| `manager.py` | CLI yönetim aracı |
-| `install.sh` | Otomatik kurulum |
-| `test_system.py` | Uçtan uca sistem testi |
-
----
-
-## 🐛 v1'den Düzeltilen Hatalar
-
-1. **Suricata daemon sorunu** — `-D` flag'i kaldırıldı, Suricata artık doğrudan subprocess olarak yönetiliyor. Çöktüğünde watchdog otomatik yeniden başlatıyor.
-
-2. **iptables zincir çakışması** — Zincir oluşturmadan önce INPUT/FORWARD yönlendirmeleri kaldırılıyor, sonra zincir sıfırlanıp yeniden kuruluyor.
-
-3. **Eve.json race condition** — Dosya boyut kontrolü eklendi (logrotate sonrası başa dön), `errors='replace'` ile encoding hatası önlendi.
-
-4. **Suricata başlamadan "başarılı" dönmesi** — Eve.json oluşana kadar bekleme döngüsü eklendi, process poll() kontrolü yapılıyor.
-
-5. **Modüler config** — Arayüz otomatik tespit ediliyor, whitelist config.py'de merkezi olarak yönetiliyor.
-
----
-
-## ⚙️ Önemli Ayarlar (config.py)
-
-```python
-# Kendi IP'nizi whitelist'e ekleyin!
-'whitelist': ['127.0.0.1', '::1', '192.168.1.100'],
-
-# IPS (engeller) veya IDS (sadece loglar) modu
-'enabled': True,
-
-# Engelleme süreleri (saniye)
-# nmap_scan   → 3600  (1 saat)
-# brute_force → 7200  (2 saat)
-# dos_attack  → 86400 (24 saat)
-# malware     → 604800 (1 hafta, kalıcı)
+```
+netspecter/
+├── ids_ips.py           # Ana orkestratör, Suricata yönetimi
+├── blocker.py           # iptables IP engelleme motoru
+├── monitor.py           # eve.json alert işleyici
+├── config.py            # Merkezi yapılandırma
+├── reporter.py          # JSON rapor üretici
+├── manager.py           # CLI yönetim aracı
+├── netspecter_cli.py    # sudo netspecter komutu
+├── dashboard.py         # Flask web dashboard backend
+├── telegram_bot.py      # Telegram bildirim botu
+├── test_system.py       # Otomatik kurulum doğrulama
+├── install.sh           # Kurulum scripti
+├── .env.example         # Ortam değişkenleri şablonu
+├── .gitignore
+└── templates/
+    ├── dashboard.html   # Dashboard arayüzü
+    └── login.html       # Giriş sayfası
 ```
 
 ---
 
-## 🖥️ Yönetim Komutları
+## 🎯 Tespit Edilen Saldırılar
 
-```bash
-sudo netspecter-manager list              # Engelli IP'leri göster
-sudo netspecter-manager stats             # İstatistikler
-sudo netspecter-manager unblock 1.2.3.4   # Engel kaldır
-sudo netspecter-manager block 1.2.3.4     # Manuel engel
-sudo netspecter-manager iptables          # iptables kurallarını göster
-sudo netspecter-manager test              # Sahte nmap alert ekle
-```
+| Saldırı Tipi | Örnekler | Engel Süresi |
+|---|---|---|
+| Port Tarama | nmap -sS, -sV, -O | 1 saat |
+| SSH Brute Force | Hydra, Medusa | 2 saat |
+| FTP Brute Force | Hydra, Medusa | 2 saat |
+| HTTP Brute Force | Hydra, Nikto, dirb | 2 saat |
+| DoS/DDoS | SYN flood, UDP flood | 24 saat |
+| Exploit | SQLi, XSS, RCE, LFI | Kalıcı |
+| Malware/Trojan | C2 iletişimi, botnet | Kalıcı |
+| Web Saldırısı | sqlmap, nikto | 2 saat |
 
 ---
 
-## 🔧 Sorun Giderme
+## 🔒 Güvenlik Notları
 
-```bash
-# Suricata config testi
-sudo suricata -T -c /etc/suricata/suricata.yaml
+- `.env` dosyasını asla GitHub'a göndermeyin (`.gitignore` ile korunur)
+- Dashboard giriş bilgilerini varsayılan değerden değiştirin
+- Kendi IP adresinizi whitelist'e eklemeyi unutmayın
+- Dashboard'a yalnızca yerel ağdan erişilmesi önerilir
 
-# Eve.json canlı izleme
-sudo tail -f /var/log/suricata/eve.json | python3 -m json.tool
+---
 
-# iptables zincirini sıfırla
-sudo iptables -F IDS_IPS
-sudo iptables -D INPUT -j IDS_IPS 2>/dev/null
-sudo iptables -D FORWARD -j IDS_IPS 2>/dev/null
-sudo iptables -X IDS_IPS
+## 📄 Lisans
 
-# Sistem logları
-sudo journalctl -u netspecter -f --no-pager
-```
+Bu proje bir mezuniyet tezi kapsamında geliştirilmiştir.
