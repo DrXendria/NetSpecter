@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NetSpecter — Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Exo+2:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#030712; --bg2:#0d1117; --bg3:#111827; --border:#1f2937; --border2:#374151;
+  --text:#e2e8f0; --dim:#64748b; --mute:#334155;
+  --green:#10b981; --red:#ef4444; --yellow:#f59e0b; --cyan:#06b6d4;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  background:var(--bg); color:var(--text);
+  font-family:'Exo 2',sans-serif; font-size:14px;
+  min-height:100vh; overflow-x:hidden;
+}
+body::before {
+  content:''; position:fixed; inset:0;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.03) 2px,rgba(0,0,0,.03) 4px);
+  pointer-events:none; z-index:1000;
+}
+
+/* ── HEADER ── */
+header {
+  background:var(--bg2); border-bottom:1px solid var(--border);
+  padding:0 24px; height:56px; display:flex; align-items:center;
+  justify-content:space-between; position:sticky; top:0; z-index:100;
+}
+.logo { display:flex; align-items:center; gap:12px; }
+.logo-icon {
+  width:32px; height:32px; border:2px solid var(--green); border-radius:6px;
+  display:flex; align-items:center; justify-content:center;
+  font-family:'Exo 2',sans-serif; font-size:12px; font-weight:900;
+  color:var(--green); animation:pulse-border 2s ease-in-out infinite;
+}
+@keyframes pulse-border {
+  0%,100%{box-shadow:0 0 8px rgba(16,185,129,.3)} 50%{box-shadow:0 0 20px rgba(16,185,129,.6)}
+}
+.logo-text {
+  font-family:'Exo 2',sans-serif; font-size:18px; font-weight:900;
+  letter-spacing:3px; color:var(--text); text-transform:uppercase;
+}
+.logo-text span { color:var(--green); }
+
+.header-right { display:flex; align-items:center; gap:16px; }
+
+.lang-toggle {
+  display:flex; background:var(--bg3); border:1px solid var(--border);
+  border-radius:6px; overflow:hidden;
+}
+.lang-btn {
+  padding:5px 10px; font-family:'JetBrains Mono',monospace; font-size:10px;
+  color:var(--dim); background:transparent; border:none; cursor:pointer;
+  transition:all .2s; letter-spacing:1px;
+}
+.lang-btn.active { background:rgba(16,185,129,.1); color:var(--green); }
+.lang-btn:hover:not(.active) { color:var(--text); }
+
+.status-pill {
+  display:flex; align-items:center; gap:8px; padding:6px 14px;
+  border-radius:20px; border:1px solid var(--green);
+  font-family:'JetBrains Mono',monospace; font-size:11px;
+  letter-spacing:1px; color:var(--green); background:rgba(16,185,129,.05);
+}
+.status-dot {
+  width:7px; height:7px; border-radius:50%; background:var(--green);
+  animation:blink 1.5s ease-in-out infinite;
+}
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.2} }
+
+.header-time {
+  font-family:'JetBrains Mono',monospace; font-size:13px;
+  color:var(--dim); letter-spacing:1px; min-width:70px; text-align:right;
+}
+
+/* ── LAYOUT ── */
+.container { max-width:1600px; margin:0 auto; padding:20px 24px; display:grid; gap:16px; }
+
+/* ── STAT CARDS ── */
+.stats-row { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
+.stat-card {
+  background:var(--bg2); border:1px solid var(--border); border-radius:8px;
+  padding:16px 20px; position:relative; overflow:hidden; transition:border-color .3s;
+}
+.stat-card::before {
+  content:''; position:absolute; top:0; left:0; right:0; height:2px;
+  background:var(--accent,var(--green)); opacity:.8;
+}
+.stat-card:hover { border-color:var(--border2); }
+.stat-label {
+  font-size:11px; letter-spacing:2px; text-transform:uppercase;
+  color:var(--dim); font-family:'JetBrains Mono',monospace; margin-bottom:8px;
+}
+.stat-value {
+  font-family:'Exo 2',sans-serif; font-size:28px; font-weight:700;
+  color:var(--accent,var(--green)); line-height:1;
+}
+.stat-sub { font-size:11px; color:var(--mute); margin-top:6px; font-family:'JetBrains Mono',monospace; }
+.stat-card.danger  { --accent:var(--red); }
+.stat-card.warning { --accent:var(--yellow); }
+.stat-card.info    { --accent:var(--cyan); }
+
+/* ── CHARTS ── */
+.charts-row { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+.chart-panel {
+  background:var(--bg2); border:1px solid var(--border); border-radius:8px;
+  padding:16px; display:flex; flex-direction:column; height:260px;
+}
+.chart-title {
+  font-family:'JetBrains Mono',monospace; font-size:10px;
+  letter-spacing:2px; color:var(--dim); margin-bottom:12px; text-transform:uppercase;
+}
+.chart-wrap { flex:1; position:relative; min-height:0; }
+
+/* ── MAIN GRID ── */
+.main-grid {
+  display:grid; grid-template-columns:1fr 360px;
+  grid-template-rows:1fr; gap:16px; min-height:420px;
+}
+
+/* ── PANEL ── */
+.panel {
+  background:var(--bg2); border:1px solid var(--border); border-radius:8px;
+  display:flex; flex-direction:column; overflow:hidden;
+}
+.panel-header {
+  padding:12px 16px; border-bottom:1px solid var(--border);
+  display:flex; align-items:center; justify-content:space-between; flex-shrink:0;
+}
+.panel-title {
+  font-family:'JetBrains Mono',monospace; font-size:11px;
+  letter-spacing:2px; text-transform:uppercase; color:var(--dim);
+  display:flex; align-items:center; gap:8px;
+}
+.panel-title::before {
+  content:''; width:6px; height:6px; border-radius:50%;
+  background:var(--panel-color,var(--green));
+}
+.panel-badge {
+  font-family:'JetBrains Mono',monospace; font-size:11px; padding:2px 8px;
+  border-radius:10px; background:rgba(255,255,255,.05);
+  color:var(--dim); border:1px solid var(--border);
+}
+
+/* ── ALERT STREAM ── */
+.alert-stream { --panel-color:var(--yellow); }
+.alert-body {
+  flex:1; overflow-y:auto; padding:4px 0;
+  scrollbar-width:thin; scrollbar-color:var(--border2) transparent;
+}
+.alert-body::-webkit-scrollbar { width:4px; }
+.alert-body::-webkit-scrollbar-thumb { background:var(--border2); border-radius:2px; }
+
+.alert-row {
+  display:grid; grid-template-columns:62px 130px 160px 1fr 58px;
+  align-items:center; padding:7px 16px; gap:8px;
+  border-bottom:1px solid rgba(255,255,255,.03);
+  transition:background .15s; animation:slide-in .25s ease;
+}
+@keyframes slide-in { from{opacity:0;transform:translateX(-6px)} to{opacity:1;transform:translateX(0)} }
+.alert-row:hover { background:rgba(255,255,255,.03); }
+.alert-time { font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--mute); }
+.alert-ip   { font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--text); }
+.alert-type { font-size:12px; font-weight:600; letter-spacing:.3px; }
+.alert-sig  { font-size:11px; color:var(--dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.alert-sev  { font-family:'JetBrains Mono',monospace; font-size:10px; padding:2px 6px; border-radius:4px; text-align:center; }
+.sev-1,.sev-2 { background:rgba(239,68,68,.15); color:var(--red); border:1px solid rgba(239,68,68,.3); }
+.sev-3        { background:rgba(245,158,11,.1);  color:var(--yellow); border:1px solid rgba(245,158,11,.2); }
+.sev-4        { background:rgba(100,116,139,.1); color:var(--dim); border:1px solid var(--border); }
+
+.legend { display:flex; flex-wrap:wrap; gap:6px; padding:10px 16px; border-top:1px solid var(--border); }
+.legend-item { display:flex; align-items:center; gap:5px; font-size:10px; color:var(--dim); font-family:'JetBrains Mono',monospace; }
+.legend-dot  { width:6px; height:6px; border-radius:50%; flex-shrink:0; }
+
+/* ── BLOCKED ── */
+.blocked-panel { --panel-color:var(--red); }
+.blocked-body {
+  flex:1; overflow-y:auto; padding:8px;
+  scrollbar-width:thin; scrollbar-color:var(--border2) transparent;
+}
+.blocked-item {
+  background:var(--bg3); border:1px solid var(--border); border-radius:6px;
+  padding:10px 12px; margin-bottom:6px; animation:slide-in .25s ease;
+  position:relative; overflow:hidden;
+}
+.blocked-item::before {
+  content:''; position:absolute; left:0; top:0; bottom:0;
+  width:3px; background:var(--red);
+}
+.blocked-item.permanent::before { background:#ff2020; box-shadow:0 0 8px rgba(255,32,32,.5); }
+.blocked-ip {
+  font-family:'JetBrains Mono',monospace; font-size:13px; color:var(--red);
+  margin-bottom:4px; display:flex; align-items:center; justify-content:space-between;
+}
+.perm-badge {
+  font-size:9px; letter-spacing:1px; padding:1px 6px; border-radius:3px;
+  background:rgba(255,32,32,.15); color:#ff2020; border:1px solid rgba(255,32,32,.3);
+}
+.blocked-meta { display:flex; justify-content:space-between; align-items:center; margin-top:2px; }
+.blocked-reason { font-size:11px; color:var(--dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:190px; }
+.blocked-time   { font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--mute); }
+.unblock-btn {
+  margin-top:8px; width:100%; padding:5px; background:transparent;
+  border:1px solid var(--border2); border-radius:4px; color:var(--dim);
+  font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:1px;
+  cursor:pointer; transition:all .2s;
+}
+.unblock-btn:hover { border-color:var(--green); color:var(--green); background:rgba(16,185,129,.05); }
+
+.empty-state { text-align:center; padding:40px 20px; color:var(--mute); font-family:'JetBrains Mono',monospace; font-size:12px; line-height:2; }
+.empty-icon  { font-size:28px; margin-bottom:8px; }
+
+/* ── FLASH ── */
+.flash-overlay { position:fixed; inset:0; pointer-events:none; z-index:999; opacity:0; }
+@keyframes flash { 0%{opacity:.15} 100%{opacity:0} }
+</style>
+</head>
+<body>
+<div class="flash-overlay" id="flashOverlay"></div>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">NS</div>
+    <div class="logo-text">NET<span>SPECTER</span></div>
+  </div>
+  <div class="header-right">
+    <div class="lang-toggle">
+      <button class="lang-btn active" id="dashBtnTR" onclick="setLang('tr')">TR</button>
+      <button class="lang-btn"        id="dashBtnEN" onclick="setLang('en')">EN</button>
+    </div>
+    <div class="status-pill">
+      <div class="status-dot"></div>
+      <span id="statusText">SİSTEM AKTİF</span>
+    </div>
+    <div class="header-time" id="headerTime">--:--:--</div>
+  </div>
+</header>
+
+<div class="container">
+  <!-- Stat kartları -->
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="stat-label" id="lblTotalAlerts">Toplam Alert</div>
+      <div class="stat-value" id="statAlerts">0</div>
+      <div class="stat-sub" id="lblThisSession">Bu oturumda</div>
+    </div>
+    <div class="stat-card danger">
+      <div class="stat-label" id="lblBlocked">Engellenen IP</div>
+      <div class="stat-value" id="statBlocked">0</div>
+      <div class="stat-sub" id="lblActiveBlock">Aktif engel</div>
+    </div>
+    <div class="stat-card warning">
+      <div class="stat-label" id="lblPermanent">Kalıcı Engel</div>
+      <div class="stat-value" id="statPermanent">0</div>
+      <div class="stat-sub" id="lblManual">Manuel kaldırılabilir</div>
+    </div>
+    <div class="stat-card info">
+      <div class="stat-label" id="lblLastAlert">Son Alert</div>
+      <div class="stat-value" style="font-size:18px" id="statLastAlert">—</div>
+      <div class="stat-sub" id="statLastType">Bekleniyor...</div>
+    </div>
+  </div>
+
+  <!-- Grafikler -->
+  <div class="charts-row">
+    <div class="chart-panel">
+      <div class="chart-title" id="lblTimeline">⬡ Alert Zaman Çizelgesi</div>
+      <div class="chart-wrap"><canvas id="timelineChart"></canvas></div>
+    </div>
+    <div class="chart-panel">
+      <div class="chart-title" id="lblDist">◈ Saldırı Tipi Dağılımı</div>
+      <div class="chart-wrap"><canvas id="distChart"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Ana grid -->
+  <div class="main-grid">
+    <div class="panel alert-stream">
+      <div class="panel-header">
+        <div class="panel-title" id="lblLiveAlerts">Canlı Alert Akışı</div>
+        <span class="panel-badge" id="alertCountBadge">0 alert</span>
+      </div>
+      <div class="alert-body" id="alertBody">
+        <div class="empty-state">
+          <div class="empty-icon">📡</div>
+          <span id="emptyAlertsText">Saldırı bekleniyor...</span><br>
+          <span style="color:var(--mute)" id="emptyListeningText">Suricata dinlemede</span>
+        </div>
+      </div>
+      <div class="legend" id="legend"></div>
+    </div>
+
+    <div class="panel blocked-panel">
+      <div class="panel-header">
+        <div class="panel-title" id="lblBlockedPanel">Engellenen IP'ler</div>
+        <span class="panel-badge" id="blockedCountBadge">0</span>
+      </div>
+      <div class="blocked-body" id="blockedBody">
+        <div class="empty-state">
+          <div class="empty-icon">🛡️</div>
+          <span id="emptyBlockedText">Engellenen IP yok</span><br>
+          <span style="color:var(--mute)" id="emptyProtectingText">Sistem koruyor</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── i18n ──────────────────────────────────────────────────────────────
+const i18n = {
+  tr: {
+    statusText:       'SİSTEM AKTİF',
+    lblTotalAlerts:   'Toplam Alert',
+    lblBlocked:       'Engellenen IP',
+    lblPermanent:     'Kalıcı Engel',
+    lblLastAlert:     'Son Alert',
+    lblThisSession:   'Bu oturumda',
+    lblActiveBlock:   'Aktif engel',
+    lblManual:        'Manuel kaldırılabilir',
+    lblTimeline:      '⬡ Alert Zaman Çizelgesi',
+    lblDist:          '◈ Saldırı Tipi Dağılımı',
+    lblLiveAlerts:    'Canlı Alert Akışı',
+    lblBlockedPanel:  "Engellenen IP'ler",
+    alertBadge:       'alert',
+    waiting:          'Bekleniyor...',
+    emptyAlerts:      'Saldırı bekleniyor...',
+    emptyListening:   'Suricata dinlemede',
+    emptyBlocked:     'Engellenen IP yok',
+    emptyProtecting:  'Sistem koruyor',
+    unblockBtn:       'ENGELİ KALDIR',
+    permanent:        'KALICI',
+  },
+  en: {
+    statusText:       'SYSTEM ACTIVE',
+    lblTotalAlerts:   'Total Alerts',
+    lblBlocked:       'Blocked IPs',
+    lblPermanent:     'Permanent Blocks',
+    lblLastAlert:     'Last Alert',
+    lblThisSession:   'This session',
+    lblActiveBlock:   'Active blocks',
+    lblManual:        'Manually removable',
+    lblTimeline:      '⬡ Alert Timeline',
+    lblDist:          '◈ Attack Type Distribution',
+    lblLiveAlerts:    'Live Alert Feed',
+    lblBlockedPanel:  'Blocked IPs',
+    alertBadge:       'alerts',
+    waiting:          'Waiting...',
+    emptyAlerts:      'Waiting for attacks...',
+    emptyListening:   'Suricata listening',
+    emptyBlocked:     'No blocked IPs',
+    emptyProtecting:  'System protecting',
+    unblockBtn:       'UNBLOCK',
+    permanent:        'PERMANENT',
+  }
+};
+
+let lang = localStorage.getItem('ns_lang') || 'tr';
+
+function setLang(l) {
+  lang = l;
+  localStorage.setItem('ns_lang', l);
+  document.getElementById('dashBtnTR').classList.toggle('active', l === 'tr');
+  document.getElementById('dashBtnEN').classList.toggle('active', l === 'en');
+  const t = i18n[l];
+  const set = (id, val) => { const e = document.getElementById(id); if (e) e.textContent = val; };
+  set('statusText',      t.statusText);
+  set('lblTotalAlerts',  t.lblTotalAlerts);
+  set('lblBlocked',      t.lblBlocked);
+  set('lblPermanent',    t.lblPermanent);
+  set('lblLastAlert',    t.lblLastAlert);
+  set('lblThisSession',  t.lblThisSession);
+  set('lblActiveBlock',  t.lblActiveBlock);
+  set('lblManual',       t.lblManual);
+  set('lblTimeline',     t.lblTimeline);
+  set('lblDist',         t.lblDist);
+  set('lblLiveAlerts',   t.lblLiveAlerts);
+  set('lblBlockedPanel', t.lblBlockedPanel);
+  set('alertCountBadge', alertCount + ' ' + t.alertBadge);
+  if (document.getElementById('statLastAlert').textContent === '—') {
+    set('statLastType', t.waiting);
+  }
+  const emptyA = document.querySelector('#alertBody .empty-state');
+  if (emptyA) {
+    document.getElementById('emptyAlertsText').textContent    = t.emptyAlerts;
+    document.getElementById('emptyListeningText').textContent = t.emptyListening;
+  }
+  const emptyB = document.querySelector('#blockedBody .empty-state');
+  if (emptyB) {
+    document.getElementById('emptyBlockedText').textContent    = t.emptyBlocked;
+    document.getElementById('emptyProtectingText').textContent = t.emptyProtecting;
+  }
+}
+
+// ── Saldırı renk/etiket tablosu ──────────────────────────────────────
+const COLORS = {
+  nmap_scan:        '#f59e0b',
+  brute_force_ssh:  '#ef4444',
+  brute_force_ftp:  '#f97316',
+  brute_force_http: '#ec4899',
+  dos_attack:       '#a855f7',
+  exploit:          '#dc2626',
+  malware:          '#ff2020',
+  web_attack:       '#06b6d4',
+  info_leak:        '#64748b',
+  unknown:          '#334155',
+};
+const LABELS_TR = {
+  nmap_scan:'Port Tarama', brute_force_ssh:'SSH Brute Force', brute_force_ftp:'FTP Brute Force',
+  brute_force_http:'HTTP Brute Force', dos_attack:'DoS Saldırısı', exploit:'Exploit',
+  malware:'Malware', web_attack:'Web Saldırısı', info_leak:'Bilgi Sızıntısı', unknown:'Bilinmeyen',
+};
+const LABELS_EN = {
+  nmap_scan:'Port Scan', brute_force_ssh:'SSH Brute Force', brute_force_ftp:'FTP Brute Force',
+  brute_force_http:'HTTP Brute Force', dos_attack:'DoS Attack', exploit:'Exploit',
+  malware:'Malware', web_attack:'Web Attack', info_leak:'Info Leak', unknown:'Unknown',
+};
+const getLabel = (key) => (lang === 'tr' ? LABELS_TR : LABELS_EN)[key] || key;
+
+// ── Durum ─────────────────────────────────────────────────────────────
+let alertCount = 0;
+let distData   = {};
+let timelineData = [];
+let timelineChart, distChart;
+
+// ── Saat ──────────────────────────────────────────────────────────────
+function updateClock() {
+  const n  = new Date();
+  const hh = String(n.getHours()).padStart(2,'0');
+  const mm = String(n.getMinutes()).padStart(2,'0');
+  const ss = String(n.getSeconds()).padStart(2,'0');
+  document.getElementById('headerTime').textContent = hh + ':' + mm + ':' + ss;
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ── Grafikler ─────────────────────────────────────────────────────────
+function initCharts() {
+  Chart.defaults.color     = '#64748b';
+  Chart.defaults.font.family = "'JetBrains Mono', monospace";
+  Chart.defaults.font.size   = 11;
+
+  timelineChart = new Chart(document.getElementById('timelineChart'), {
+    type: 'line',
+    data: {
+      labels: [],
+      datasets: [{ label:'Alert', data:[], borderColor:'#f59e0b',
+        backgroundColor:'rgba(245,158,11,.08)', borderWidth:2,
+        pointRadius:3, pointBackgroundColor:'#f59e0b', fill:true, tension:.4 }]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false, animation:{ duration:300 },
+      plugins:{ legend:{ display:false } },
+      scales:{
+        x:{ grid:{ color:'rgba(255,255,255,.04)' }, ticks:{ maxTicksLimit:8 } },
+        y:{ grid:{ color:'rgba(255,255,255,.04)' }, beginAtZero:true, ticks:{ stepSize:1 } }
+      }
+    }
+  });
+
+  distChart = new Chart(document.getElementById('distChart'), {
+    type: 'doughnut',
+    data: { labels:[], datasets:[{ data:[], backgroundColor:[], borderWidth:0, hoverOffset:6 }] },
+    options: {
+      responsive:true, maintainAspectRatio:false, animation:{ duration:400 }, cutout:'65%',
+      plugins:{ legend:{ position:'right', labels:{ boxWidth:10, padding:12 } } }
+    }
+  });
+}
+
+function updateDistChart() {
+  const labels=[], data=[], colors=[];
+  for (const [key,count] of Object.entries(distData)) {
+    if (count > 0) {
+      labels.push(getLabel(key));
+      data.push(count);
+      colors.push(COLORS[key] || '#334155');
+    }
+  }
+  distChart.data.labels = labels;
+  distChart.data.datasets[0].data = data;
+  distChart.data.datasets[0].backgroundColor = colors;
+  distChart.update('none');
+}
+
+function updateTimelineChart() {
+  timelineChart.data.labels = timelineData.map(d => d.time);
+  timelineChart.data.datasets[0].data = timelineData.map(d => d.count);
+  timelineChart.update('none');
+}
+
+// ── Legend ────────────────────────────────────────────────────────────
+function renderLegend() {
+  document.getElementById('legend').innerHTML = Object.entries(COLORS).map(([k,c]) =>
+    `<div class="legend-item"><div class="legend-dot" style="background:${c}"></div>${getLabel(k)}</div>`
+  ).join('');
+}
+
+// ── Alert satırı ──────────────────────────────────────────────────────
+function makeAlertRow(a) {
+  const color = COLORS[a.attack_type] || '#64748b';
+  const label = getLabel(a.attack_type);
+  return `<div class="alert-row">
+    <span class="alert-time">${a.time}</span>
+    <span class="alert-ip">${a.src_ip}</span>
+    <span class="alert-type" style="color:${color}">${label}</span>
+    <span class="alert-sig" title="${a.signature}">${a.signature}</span>
+    <span class="alert-sev sev-${a.severity}">SEV ${a.severity}</span>
+  </div>`;
+}
+
+// ── Engellenen IP listesi ─────────────────────────────────────────────
+function renderBlocked(list) {
+  const t = i18n[lang];
+  document.getElementById('blockedCountBadge').textContent = list.length;
+  document.getElementById('statBlocked').textContent   = list.length;
+  document.getElementById('statPermanent').textContent  = list.filter(i => i.permanent).length;
+  const body = document.getElementById('blockedBody');
+  if (list.length === 0) {
+    body.innerHTML = `<div class="empty-state">
+      <div class="empty-icon">🛡️</div>
+      <span>${t.emptyBlocked}</span><br>
+      <span style="color:var(--mute)">${t.emptyProtecting}</span>
+    </div>`;
+    return;
+  }
+  body.innerHTML = list.map(item => `
+    <div class="blocked-item ${item.permanent ? 'permanent' : ''}">
+      <div class="blocked-ip">
+        <span>${item.ip}</span>
+        ${item.permanent ? `<span class="perm-badge">${t.permanent}</span>` : ''}
+      </div>
+      <div class="blocked-meta">
+        <span class="blocked-reason" title="${item.reason}">${item.reason}</span>
+        <span class="blocked-time">${item.remaining}</span>
+      </div>
+      <button class="unblock-btn" onclick="unblock('${item.ip}')">${t.unblockBtn}</button>
+    </div>`).join('');
+}
+
+function unblock(ip) {
+  fetch(`/api/unblock/${ip}`, { method:'POST' })
+    .then(r => r.json())
+    .then(d => { if (d.success) loadBlocked(); });
+}
+
+function loadBlocked() {
+  fetch('/api/blocked').then(r => r.json()).then(renderBlocked);
+}
+
+// ── Flash ─────────────────────────────────────────────────────────────
+function flash(color) {
+  const el = document.getElementById('flashOverlay');
+  el.style.background = color + '22';
+  el.style.animation  = 'none';
+  void el.offsetWidth;
+  el.style.animation  = 'flash .4s ease forwards';
+}
+
+// ── Socket.IO ─────────────────────────────────────────────────────────
+const socket = io();
+
+socket.on('new_alert', (a) => {
+  alertCount++;
+  document.getElementById('alertCountBadge').textContent = alertCount + ' ' + i18n[lang].alertBadge;
+  document.getElementById('statAlerts').textContent    = alertCount;
+  document.getElementById('statLastAlert').textContent = a.src_ip;
+  document.getElementById('statLastType').textContent  = getLabel(a.attack_type);
+
+  distData[a.attack_type] = (distData[a.attack_type] || 0) + 1;
+  updateDistChart();
+
+  const minute = a.time.slice(0,5);
+  if (timelineData.length > 0 && timelineData[timelineData.length-1].time === minute) {
+    timelineData[timelineData.length-1].count++;
+  } else {
+    timelineData.push({ time:minute, count:1 });
+    if (timelineData.length > 30) timelineData.shift();
+  }
+  updateTimelineChart();
+
+  const body = document.getElementById('alertBody');
+  const empty = body.querySelector('.empty-state');
+  if (empty) empty.remove();
+  body.insertAdjacentHTML('afterbegin', makeAlertRow(a));
+  const rows = body.querySelectorAll('.alert-row');
+  if (rows.length > 100) rows[rows.length-1].remove();
+
+  if (a.severity <= 2) flash(COLORS[a.attack_type] || '#ef4444');
+});
+
+socket.on('blocked_update', renderBlocked);
+socket.on('stats_update',   (s) => {
+  document.getElementById('statBlocked').textContent  = s.blocked_count;
+  document.getElementById('statPermanent').textContent = s.permanent_count;
+});
+
+// ── İlk yükleme ───────────────────────────────────────────────────────
+async function init() {
+  initCharts();
+  renderLegend();
+
+  const [stats, blocked, alerts, tl] = await Promise.all([
+    fetch('/api/stats').then(r => r.json()),
+    fetch('/api/blocked').then(r => r.json()),
+    fetch('/api/alerts').then(r => r.json()),
+    fetch('/api/timeline').then(r => r.json()),
+  ]);
+
+  renderBlocked(blocked);
+
+  if (alerts.length > 0) {
+    const body = document.getElementById('alertBody');
+    body.innerHTML = '';
+    [...alerts].reverse().forEach(a => body.insertAdjacentHTML('afterbegin', makeAlertRow(a)));
+    alertCount = alerts.length;
+    document.getElementById('statAlerts').textContent      = alertCount;
+    document.getElementById('alertCountBadge').textContent = alertCount + ' ' + i18n[lang].alertBadge;
+    document.getElementById('statLastAlert').textContent   = alerts[alerts.length-1].src_ip;
+    document.getElementById('statLastType').textContent    = getLabel(alerts[alerts.length-1].attack_type);
+    alerts.forEach(a => { distData[a.attack_type] = (distData[a.attack_type] || 0) + 1; });
+    updateDistChart();
+  }
+
+  timelineData = tl;
+  updateTimelineChart();
+  setLang(lang);
+}
+
+init();
+</script>
+</body>
+</html>
