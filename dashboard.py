@@ -5,6 +5,8 @@ Kullanım: sudo python3 dashboard.py
 """
 
 import os
+import signal
+import subprocess
 import sys
 import json
 import time
@@ -322,6 +324,19 @@ if __name__ == '__main__':
     if os.geteuid() != 0:
         print("Root gerekli: sudo python3 dashboard.py")
         sys.exit(1)
+
+    # Eski process'leri temizle (port çakışmasını önle)
+    import signal
+    current_pid = os.getpid()
+    result = subprocess.run(['pgrep', '-f', 'dashboard.py'], capture_output=True, text=True)
+    for pid_str in result.stdout.strip().splitlines():
+        pid = int(pid_str)
+        if pid != current_pid:
+            try:
+                os.kill(pid, signal.SIGTERM)
+            except ProcessLookupError:
+                pass
+    time.sleep(1)
 
     # Arka plan thread'leri
     threading.Thread(target=watch_eve, daemon=True).start()

@@ -13,6 +13,7 @@ Chat ID almak için:   @userinfobot'a mesaj at
 """
 
 import os
+import subprocess
 import sys
 import json
 import time
@@ -301,6 +302,19 @@ def test_connection():
 
 
 if __name__ == '__main__':
+    # Eski process'leri temizle
+    import signal
+    current_pid = os.getpid()
+    result = subprocess.run(['pgrep', '-f', 'telegram_bot.py'], capture_output=True, text=True)
+    for pid_str in result.stdout.strip().splitlines():
+        pid = int(pid_str)
+        if pid != current_pid:
+            try:
+                os.kill(pid, signal.SIGTERM)
+            except ProcessLookupError:
+                pass
+    time.sleep(1)
+
     print("""
 ╔══════════════════════════════════════════╗
 ║    NetSpecter — Telegram Bildirim Botu   ║
@@ -329,5 +343,3 @@ if __name__ == '__main__':
     # Eve.json izleyiciyi başlat
     notifier = TelegramNotifier()
     watch_eve(notifier)
-
-

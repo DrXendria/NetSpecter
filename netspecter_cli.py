@@ -266,22 +266,25 @@ def watch_logs():
         print(f"  {DIM}Tekrar izlemek için: sudo netspecter{NC}\n")
 
 
+def kill_process(name: str):
+    """Adına göre çalışan process'leri öldür"""
+    subprocess.run(['pkill', '-f', name], capture_output=True)
+    import time as _t; _t.sleep(1)
+
+
 def start_telegram_bot():
-    """Telegram botunu arka planda başlat (zaten çalışıyorsa atla)"""
+    """Telegram botunu arka planda başlat, önce eskisini temizle"""
     bot_path = '/opt/netspecter/telegram_bot.py'
     if not os.path.exists(bot_path):
-        return
-
-    # Zaten çalışıyor mu?
-    check = subprocess.run(['pgrep', '-f', 'telegram_bot.py'], capture_output=True)
-    if check.returncode == 0:
-        print(f"  {G}✓{NC}  Telegram botu zaten çalışıyor.")
         return
 
     # .env var mı?
     if not os.path.exists('/opt/netspecter/.env'):
         print(f"  {DIM}  Telegram botu: .env bulunamadı, atlanıyor.{NC}")
         return
+
+    # Eski process'leri temizle
+    kill_process('telegram_bot.py')
 
     print(f"  {B}▶{NC}  Telegram botu başlatılıyor (arka plan)...")
     subprocess.Popen(
@@ -294,15 +297,9 @@ def start_telegram_bot():
 
 
 def start_dashboard():
-    """Dashboard'u arka planda başlat (zaten çalışıyorsa atla)"""
-    # Port 5000 açık mı kontrol et
-    check = subprocess.run(
-        ['ss', '-tlnp'],
-        capture_output=True, text=True
-    )
-    if ':5000' in check.stdout:
-        print(f"  {G}✓{NC}  Dashboard zaten çalışıyor → {C}http://localhost:5000{NC}")
-        return
+    """Dashboard'u arka planda başlat, önce eskisini temizle"""
+    # Eski process'leri temizle
+    kill_process('dashboard.py')
 
     print(f"  {B}▶{NC}  Dashboard başlatılıyor (arka plan)...")
     subprocess.Popen(
@@ -311,10 +308,9 @@ def start_dashboard():
         stderr=subprocess.DEVNULL,
         start_new_session=True,
     )
-    # Kısa bekle, sonra kontrol et
-    import time as _time; _time.sleep(2)
-    check2 = subprocess.run(['ss', '-tlnp'], capture_output=True, text=True)
-    if ':5000' in check2.stdout:
+    import time as _t; _t.sleep(2)
+    check = subprocess.run(['ss', '-tlnp'], capture_output=True, text=True)
+    if ':5000' in check.stdout:
         print(f"  {G}✓{NC}  Dashboard aktif → {C}http://localhost:5000{NC}")
     else:
         print(f"  {DIM}  Dashboard başlatılamadı (flask kurulu mu?){NC}")
@@ -327,17 +323,22 @@ def main():
 
     clear()
     banner()
+
+    # 1. Önce tüm eski process'leri temizle
+    print(f"  {DIM}Eski process'ler temizleniyor...{NC}")
+    kill_process('dashboard.py')
+    kill_process('telegram_bot.py')
+
+    # 2. Servisi başlat/restart et
     status_bar()
     print()
-
-    # Servisi başlat/restart et
     if not start_service():
         sys.exit(1)
 
-    # Dashboard'u arka planda başlat
+    # 3. Dashboard'u arka planda başlat
     start_dashboard()
 
-    # Telegram botunu arka planda başlat
+    # 4. Telegram botunu arka planda başlat
     start_telegram_bot()
     print()
 
