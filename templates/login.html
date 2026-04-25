@@ -1,5 +1,3 @@
-
-
 <!DOCTYPE html>
 <html lang="tr">
 <head>
@@ -101,6 +99,27 @@ body::before {
 .field input:focus { border-color:var(--green); box-shadow:0 0 0 3px rgba(16,185,129,.08); }
 .field input.error { border-color:var(--red); box-shadow:0 0 0 3px rgba(239,68,68,.08); }
 
+.input-wrap { position:relative; }
+.input-wrap input { padding-right:40px; }
+.eye-btn {
+  position:absolute; right:12px; top:50%; transform:translateY(-50%);
+  background:transparent; border:none; cursor:pointer; color:var(--dim);
+  font-size:14px; line-height:1; padding:0; transition:color .2s;
+  display:flex; align-items:center;
+}
+.eye-btn:hover { color:var(--text); }
+.eye-btn svg { width:16px; height:16px; }
+
+.input-wrap { position:relative; }
+.input-wrap input { padding-right:40px; }
+.eye-btn {
+  position:absolute; right:12px; top:50%; transform:translateY(-50%);
+  background:transparent; border:none; cursor:pointer; color:var(--dim);
+  display:flex; align-items:center; padding:0; transition:color .2s;
+}
+.eye-btn:hover { color:var(--text); }
+.eye-btn svg { width:16px; height:16px; }
+
 .btn {
   width:100%; margin-top:8px; padding:13px; background:transparent;
   border:1px solid var(--green); border-radius:6px; color:var(--green);
@@ -158,21 +177,43 @@ body::before {
   <form id="loginForm">
     <div class="field">
       <label id="lblUser">Kullanıcı Adı</label>
-      <input type="text" id="username" placeholder="admin" autocomplete="off" spellcheck="false">
+      <div class="input-wrap">
+        <input type="text" id="username" placeholder="" autocomplete="off" spellcheck="false">
+      </div>
     </div>
     <div class="field">
       <label id="lblPass">Parola</label>
-      <input type="password" id="password" placeholder="••••••••">
+      <div class="input-wrap">
+        <input type="password" id="password" placeholder="">
+        <button class="eye-btn" type="button" onclick="togglePass('password', this)" tabindex="-1">
+          <svg id="eye-password" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+            <circle cx="12" cy="12" r="3"/>
+          </svg>
+        </button>
+      </div>
     </div>
     <button type="submit" class="btn" id="submitBtn">Giriş Yap</button>
     <div class="error-msg" id="errorMsg">
       <span id="errText">Kullanıcı adı veya parola hatalı</span>
     </div>
   </form>
-  <div class="card-footer">NETSPECTER v2.0 &nbsp;·&nbsp; RASPBERRY PI IDS/IPS</div>
+  <div class="card-footer">NETSPECTER &nbsp;·&nbsp; RASPBERRY PI IDS/IPS</div>
 </div>
 
 <script>
+function togglePass(id, btn) {
+  const inp = document.getElementById(id);
+  const svg = btn.querySelector('svg');
+  if (inp.type === 'password') {
+    inp.type = 'text';
+    svg.innerHTML = '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/>';
+  } else {
+    inp.type = 'password';
+    svg.innerHTML = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
+  }
+}
+
 const i18n = {
   tr: {
     lblUser:  'Kullanıcı Adı',
@@ -209,6 +250,15 @@ function setLang(l) {
 }
 
 setLang(lang);
+
+function togglePass(inputId, btn) {
+  const input = document.getElementById(inputId);
+  const isPass = input.type === 'password';
+  input.type = isPass ? 'text' : 'password';
+  btn.innerHTML = isPass
+    ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>'
+    : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
+}
 
 document.getElementById('loginForm').addEventListener('submit', async (e) => {
   e.preventDefault();

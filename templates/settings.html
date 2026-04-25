@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NetSpecter — Ayarlar</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Exo+2:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#030712; --bg2:#0d1117; --bg3:#111827; --border:#1f2937; --border2:#374151;
+  --text:#e2e8f0; --dim:#64748b; --mute:#334155;
+  --green:#10b981; --red:#ef4444;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:var(--bg); color:var(--text); font-family:'Exo 2',sans-serif; min-height:100vh; }
+
+header {
+  background:var(--bg2); border-bottom:1px solid var(--border);
+  padding:0 24px; height:56px; display:flex; align-items:center;
+  justify-content:space-between; position:sticky; top:0; z-index:100;
+}
+.logo { display:flex; align-items:center; gap:12px; text-decoration:none; }
+.logo-icon {
+  width:32px; height:32px; border:2px solid var(--green); border-radius:6px;
+  display:flex; align-items:center; justify-content:center;
+  font-family:'Exo 2',sans-serif; font-size:12px; font-weight:900; color:var(--green);
+}
+.logo-text {
+  font-family:'Exo 2',sans-serif; font-size:18px; font-weight:900;
+  letter-spacing:3px; color:var(--text); text-transform:uppercase;
+}
+.logo-text span { color:var(--green); }
+
+.lang-toggle {
+  display:flex; background:var(--bg3); border:1px solid var(--border);
+  border-radius:6px; overflow:hidden;
+}
+.lang-btn {
+  padding:5px 10px; font-family:'JetBrains Mono',monospace; font-size:10px;
+  color:var(--dim); background:transparent; border:none; cursor:pointer;
+  transition:all .2s; letter-spacing:1px;
+}
+.lang-btn.active { background:rgba(16,185,129,.1); color:var(--green); }
+.lang-btn:hover:not(.active) { color:var(--text); }
+
+.header-right { display:flex; align-items:center; gap:10px; }
+.btn-header {
+  padding:6px 12px; background:transparent; border:1px solid var(--border2);
+  border-radius:6px; color:var(--dim); font-family:'JetBrains Mono',monospace;
+  font-size:10px; letter-spacing:1px; cursor:pointer; transition:all .2s;
+  text-decoration:none; display:inline-flex; align-items:center; gap:5px;
+}
+.btn-header:hover { border-color:var(--green); color:var(--green); }
+.btn-header.danger:hover { border-color:var(--red); color:var(--red); }
+
+.container { max-width:700px; margin:0 auto; padding:32px 24px; }
+.page-title { font-family:'Exo 2',sans-serif; font-size:22px; font-weight:700; letter-spacing:2px; margin-bottom:4px; text-transform:uppercase; }
+.page-sub { font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--dim); margin-bottom:32px; letter-spacing:1px; }
+
+.section {
+  background:var(--bg2); border:1px solid var(--border); border-radius:8px;
+  padding:24px; margin-bottom:20px; position:relative; overflow:hidden;
+}
+.section::before { content:''; position:absolute; top:0; left:0; right:0; height:2px; background:var(--green); opacity:.6; }
+.section-title { font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:2px; text-transform:uppercase; color:var(--dim); margin-bottom:20px; }
+
+.field { margin-bottom:16px; }
+.field label { display:block; font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:2px; color:var(--dim); text-transform:uppercase; margin-bottom:8px; }
+.field input { width:100%; padding:11px 14px; background:var(--bg3); border:1px solid var(--border); border-radius:6px; color:var(--text); font-family:'JetBrains Mono',monospace; font-size:13px; outline:none; transition:border-color .2s; }
+.field input:focus { border-color:var(--green); }
+
+.input-wrap { position:relative; }
+.input-wrap input { padding-right:40px; }
+.eye-btn {
+  position:absolute; right:12px; top:50%; transform:translateY(-50%);
+  background:transparent; border:none; cursor:pointer; color:var(--dim);
+  font-size:14px; padding:0; transition:color .2s;
+  display:flex; align-items:center;
+}
+.eye-btn:hover { color:var(--text); }
+.eye-btn svg { width:16px; height:16px; }
+
+.input-wrap { position:relative; }
+.input-wrap input { padding-right:40px; }
+.eye-btn {
+  position:absolute; right:12px; top:50%; transform:translateY(-50%);
+  background:transparent; border:none; cursor:pointer; color:var(--dim);
+  display:flex; align-items:center; padding:0; transition:color .2s;
+}
+.eye-btn:hover { color:var(--text); }
+.eye-btn svg { width:16px; height:16px; }
+
+.btn-submit { padding:11px 24px; background:transparent; border:1px solid var(--green); border-radius:6px; color:var(--green); font-family:'Exo 2',sans-serif; font-size:13px; font-weight:700; letter-spacing:2px; text-transform:uppercase; cursor:pointer; transition:all .2s; }
+.btn-submit:hover { background:rgba(16,185,129,.1); }
+
+.msg { margin-top:12px; padding:10px 14px; border-radius:6px; font-family:'JetBrains Mono',monospace; font-size:11px; display:none; }
+.msg.success { background:rgba(16,185,129,.08); border:1px solid rgba(16,185,129,.2); color:var(--green); }
+.msg.error   { background:rgba(239,68,68,.08);  border:1px solid rgba(239,68,68,.2);  color:var(--red); }
+.msg.show    { display:block; }
+</style>
+</head>
+<body>
+<header>
+  <a href="/" class="logo">
+    <div class="logo-icon">NS</div>
+    <div class="logo-text">NET<span>SPECTER</span></div>
+  </a>
+  <div class="header-right">
+    <div class="lang-toggle">
+      <button class="lang-btn" id="sBtnTR" onclick="setLang('tr')">TR</button>
+      <button class="lang-btn" id="sBtnEN" onclick="setLang('en')">EN</button>
+    </div>
+    <a href="/" class="btn-header" id="btnBack">← <span id="lblBack">Dashboard</span></a>
+    <a href="/logout" class="btn-header danger">⏻ <span id="lblLogout">Çıkış</span></a>
+  </div>
+</header>
+
+<div class="container">
+  <div class="page-title" id="pageTitle">Ayarlar</div>
+  <div class="page-sub"   id="pageSub">HESAP YÖNETİMİ</div>
+
+  <div class="section">
+    <div class="section-title" id="sectionPassTitle">🔑 Şifre Değiştir</div>
+    <div class="field">
+      <label id="lblOldPass">Mevcut Şifre</label>
+      <div class="input-wrap">
+        <div class="input-wrap">
+        <input type="password" id="oldPass" placeholder="">
+        <button class="eye-btn" type="button" onclick="togglePass('oldPass', this)" tabindex="-1">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+            <circle cx="12" cy="12" r="3"/>
+          </svg>
+        </button>
+      </div>
+        <button type="button" class="eye-btn" onclick="togglePass('oldPass', this)" tabindex="-1">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="field">
+      <label id="lblNewPass">Yeni Şifre</label>
+      <div class="input-wrap">
+        <div class="input-wrap">
+        <input type="password" id="newPass" placeholder="">
+        <button class="eye-btn" type="button" onclick="togglePass('newPass', this)" tabindex="-1">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+            <circle cx="12" cy="12" r="3"/>
+          </svg>
+        </button>
+      </div>
+        <button type="button" class="eye-btn" onclick="togglePass('newPass', this)" tabindex="-1">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="field">
+      <label id="lblNewPass2">Yeni Şifre (Tekrar)</label>
+      <div class="input-wrap">
+        <div class="input-wrap">
+        <input type="password" id="newPass2" placeholder="">
+        <button class="eye-btn" type="button" onclick="togglePass('newPass2', this)" tabindex="-1">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+            <circle cx="12" cy="12" r="3"/>
+          </svg>
+        </button>
+      </div>
+        <button type="button" class="eye-btn" onclick="togglePass('newPass2', this)" tabindex="-1">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+      </div>
+    </div>
+    <button class="btn-submit" id="btnChangePass" onclick="changePassword()">Şifreyi Değiştir</button>
+    <div class="msg" id="passMsg"></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title" id="sectionUserTitle">👤 Kullanıcı Adı Değiştir</div>
+    <div class="field">
+      <label id="lblNewUser">Yeni Kullanıcı Adı</label>
+      <input type="text" id="newUsername" placeholder="">
+    </div>
+    <div class="field">
+      <label id="lblConfirmPass">Şifrenizi Doğrulayın</label>
+      <div class="input-wrap">
+        <div class="input-wrap">
+        <input type="password" id="confirmPass" placeholder="">
+        <button class="eye-btn" type="button" onclick="togglePass('confirmPass', this)" tabindex="-1">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+            <circle cx="12" cy="12" r="3"/>
+          </svg>
+        </button>
+      </div>
+        <button type="button" class="eye-btn" onclick="togglePass('confirmPass', this)" tabindex="-1">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+      </div>
+    </div>
+    <button class="btn-submit" id="btnChangeUser" onclick="changeUsername()">Kullanıcı Adını Değiştir</button>
+    <div class="msg" id="userMsg"></div>
+  </div>
+</div>
+
+<script>
+function togglePass(id, btn) {
+  const inp = document.getElementById(id);
+  const svg = btn.querySelector('svg');
+  if (inp.type === 'password') {
+    inp.type = 'text';
+    svg.innerHTML = '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/>';
+  } else {
+    inp.type = 'password';
+    svg.innerHTML = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
+  }
+}
+
+const i18n = {
+  tr: {
+    pageTitle:        'Ayarlar',
+    pageSub:          'HESAP YÖNETİMİ',
+    lblBack:          'Dashboard',
+    lblLogout:        'Çıkış',
+    sectionPassTitle: '🔑 Şifre Değiştir',
+    sectionUserTitle: '👤 Kullanıcı Adı Değiştir',
+    lblOldPass:       'Mevcut Şifre',
+    lblNewPass:       'Yeni Şifre',
+    lblNewPass2:      'Yeni Şifre (Tekrar)',
+    lblNewUser:       'Yeni Kullanıcı Adı',
+    lblConfirmPass:   'Şifrenizi Doğrulayın',
+    btnChangePass:    'Şifreyi Değiştir',
+    btnChangeUser:    'Kullanıcı Adını Değiştir',
+    errNoMatch:       'Yeni şifreler eşleşmiyor',
+    errShort:         'Şifre en az 6 karakter olmalı',
+    errNoUser:        'Kullanıcı adı boş olamaz',
+  },
+  en: {
+    pageTitle:        'Settings',
+    pageSub:          'ACCOUNT MANAGEMENT',
+    lblBack:          'Dashboard',
+    lblLogout:        'Logout',
+    sectionPassTitle: '🔑 Change Password',
+    sectionUserTitle: '👤 Change Username',
+    lblOldPass:       'Current Password',
+    lblNewPass:       'New Password',
+    lblNewPass2:      'New Password (Repeat)',
+    lblNewUser:       'New Username',
+    lblConfirmPass:   'Confirm Password',
+    btnChangePass:    'Change Password',
+    btnChangeUser:    'Change Username',
+    errNoMatch:       'New passwords do not match',
+    errShort:         'Password must be at least 6 characters',
+    errNoUser:        'Username cannot be empty',
+  }
+};
+
+let lang = localStorage.getItem('ns_lang') || 'tr';
+
+function setLang(l) {
+  lang = l;
+  localStorage.setItem('ns_lang', l);
+  document.getElementById('sBtnTR').classList.toggle('active', l === 'tr');
+  document.getElementById('sBtnEN').classList.toggle('active', l === 'en');
+  const t   = i18n[l];
+  const set = (id, val) => { const e = document.getElementById(id); if (e) e.textContent = val; };
+  set('pageTitle',        t.pageTitle);
+  set('pageSub',          t.pageSub);
+  set('lblBack',          t.lblBack);
+  set('lblLogout',        t.lblLogout);
+  set('sectionPassTitle', t.sectionPassTitle);
+  set('sectionUserTitle', t.sectionUserTitle);
+  set('lblOldPass',       t.lblOldPass);
+  set('lblNewPass',       t.lblNewPass);
+  set('lblNewPass2',      t.lblNewPass2);
+  set('lblNewUser',       t.lblNewUser);
+  set('lblConfirmPass',   t.lblConfirmPass);
+  set('btnChangePass',    t.btnChangePass);
+  set('btnChangeUser',    t.btnChangeUser);
+}
+
+// Aktif dil butonunu ayarla
+document.getElementById('sBtnTR').classList.toggle('active', lang === 'tr');
+document.getElementById('sBtnEN').classList.toggle('active', lang === 'en');
+setLang(lang);
+
+function togglePass(inputId, btn) {
+  const input = document.getElementById(inputId);
+  const isPass = input.type === 'password';
+  input.type = isPass ? 'text' : 'password';
+  btn.innerHTML = isPass
+    ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>'
+    : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
+}
+
+async function changePassword() {
+  const t       = i18n[lang];
+  const oldPass = document.getElementById('oldPass').value;
+  const newPass = document.getElementById('newPass').value;
+  const newPass2= document.getElementById('newPass2').value;
+  const msg     = document.getElementById('passMsg');
+  if (newPass !== newPass2) { showMsg(msg, 'error', t.errNoMatch); return; }
+  if (newPass.length < 6)   { showMsg(msg, 'error', t.errShort);   return; }
+  const res  = await fetch('/api/settings/change-password', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ old_password: oldPass, new_password: newPass }),
+  });
+  const data = await res.json();
+  showMsg(msg, data.success ? 'success' : 'error', data.message);
+  if (data.success) {
+    document.getElementById('oldPass').value  = '';
+    document.getElementById('newPass').value  = '';
+    document.getElementById('newPass2').value = '';
+  }
+}
+
+async function changeUsername() {
+  const t           = i18n[lang];
+  const newUsername = document.getElementById('newUsername').value.trim();
+  const confirmPass = document.getElementById('confirmPass').value;
+  const msg         = document.getElementById('userMsg');
+  if (!newUsername) { showMsg(msg, 'error', t.errNoUser); return; }
+  const res  = await fetch('/api/settings/change-username', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ new_username: newUsername, password: confirmPass }),
+  });
+  const data = await res.json();
+  showMsg(msg, data.success ? 'success' : 'error', data.message);
+  if (data.success) {
+    document.getElementById('newUsername').value = '';
+    document.getElementById('confirmPass').value = '';
+  }
+}
+
+function showMsg(el, type, text) {
+  el.className = 'msg ' + type + ' show';
+  el.textContent = text;
+  setTimeout(() => el.classList.remove('show'), 4000);
+}
+</script>
+</body>
+</html>

@@ -59,7 +59,7 @@ def clear():
 def banner():
     print(f"""
 {B}╔══════════════════════════════════════════════════════╗
-║         {W}NetSpecter IDS/IPS  —  v2.0{B}                  ║
+║         {W}NetSpecter IDS/IPS{B}                  ║
 ║         {DIM}Raspberry Pi Saldırı Tespit Sistemi{B}           ║
 ╚══════════════════════════════════════════════════════╝{NC}
 """)
@@ -187,16 +187,27 @@ def format_log_line(line: str) -> str:
         sev    = parts[2].strip() if len(parts) > 2 else ''
         imza   = parts[3].strip() if len(parts) > 3 else ''
 
+        # IP ve port'u conn'dan parse et: "IP → port X"
+        ip_str   = ''
+        port_str = ''
+        if '→' in conn:
+            left, _, right = conn.partition('→')
+            ip_str   = left.strip()
+            port_str = right.strip().replace('port', '').strip()
+        else:
+            ip_str = conn
+
         color = ATTACK_COLORS.get(tip, Y)
         label = ATTACK_LABELS.get(tip, tip.upper())
-        sev_num = sev.replace('sev=', '')
+        sev_num   = sev.replace('sev=', '')
         sev_color = R if sev_num in ('1', '2') else Y
+        port_disp = f":{port_str}" if port_str and port_str != '?' else ''
 
         now = datetime.now().strftime('%H:%M:%S')
         return (
             f"{Y}│{NC} {DIM}{now}{NC} {W}ALERT{NC}  "
             f"{color}{label:<20}{NC}  "
-            f"{W}{conn}{NC}  "
+            f"{W}{ip_str}{port_disp}{NC}  "
             f"{sev_color}[sev={sev_num}]{NC}"
         )
 
@@ -311,7 +322,10 @@ def start_dashboard():
     import time as _t; _t.sleep(2)
     check = subprocess.run(['ss', '-tlnp'], capture_output=True, text=True)
     if ':5000' in check.stdout:
-        print(f"  {G}✓{NC}  Dashboard aktif → {C}http://localhost:5000{NC}")
+        # Cihaz IP'sini al
+        ip_result = subprocess.run(['hostname', '-I'], capture_output=True, text=True)
+        device_ip = ip_result.stdout.strip().split()[0] if ip_result.stdout.strip() else '<pi-ip>'
+        print(f"  {G}✓{NC}  Dashboard aktif → {C}http://localhost:5000{NC}  |  {C}http://{device_ip}:5000{NC}")
     else:
         print(f"  {DIM}  Dashboard başlatılamadı (flask kurulu mu?){NC}")
 
