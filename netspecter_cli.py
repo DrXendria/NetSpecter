@@ -26,15 +26,15 @@ BOLD='\033[1m'
 
 # Saldırı tipi renkleri
 ATTACK_COLORS = {
-    'nmap_scan':        Y,
-    'brute_force_ssh':  R,
-    'brute_force_ftp':  R,
-    'brute_force_http': R,
-    'dos_attack':       M,
-    'exploit':          R,
-    'malware':          R + BOLD,
-    'web_attack':       Y,
-    'info_leak':        C,
+    'nmap_scan':        Y,         # Sarı (Amber)
+    'brute_force_ssh':  R,         # Kırmızı
+    'brute_force_ftp':  Y,         # Sarı/Turuncu
+    'brute_force_http': M,         # Mor/Pembe
+    'dos_attack':       M + BOLD,  # Kalın Mor
+    'exploit':          R + BOLD,  # Kalın Kırmızı
+    'malware':          R + BOLD,  # Kritik Kırmızı
+    'web_attack':       C,         # Cyan (Mavimsi)
+    'info_leak':        DIM,       # Soluk
     'unknown':          DIM,
 }
 
@@ -56,17 +56,21 @@ def clear():
     os.system('clear')
 
 
+# Görünüm genişliği
+WIDTH = 60
+
 def banner():
-    print(f"""
-{B}╔══════════════════════════════════════════════════════╗
-║         {W}NetSpecter IDS/IPS{B}                  ║
-║         {DIM}Raspberry Pi Saldırı Tespit Sistemi{B}           ║
-╚══════════════════════════════════════════════════════╝{NC}
-""")
+    title = "NetSpecter IDS/IPS"
+    subtitle = "Raspberry Pi Saldırı Tespit Sistemi"
+    
+    print(f"{B}╔{'═' * (WIDTH-2)}╗{NC}")
+    print(f"{B}║{NC}{W}{title.center(WIDTH-2)}{NC}{B}║{NC}")
+    print(f"{B}║{NC}{DIM}{subtitle.center(WIDTH-2)}{NC}{B}║{NC}")
+    print(f"{B}╚{'═' * (WIDTH-2)}╝{NC}")
 
 
 def divider(char='─', color=DIM):
-    print(f"{color}{char * 56}{NC}")
+    print(f"{color}{char * WIDTH}{NC}")
 
 
 def run(cmd):
@@ -101,20 +105,12 @@ def start_service():
 
 
 def get_stats():
-    """State dosyasından istatistik oku"""
+    """Veritabanından özet istatistik oku"""
     try:
-        with open('/var/log/netspecter/state.json') as f:
-            state = json.load(f)
-        blocked = state.get('blocked_ips', {})
-        return {
-            'blocked_count':   len(blocked),
-            'permanent_count': sum(1 for i in blocked.values() if i.get('permanent')),
-            'top_violations':  sorted(
-                state.get('violation_counts', {}).items(),
-                key=lambda x: -x[1]
-            )[:3],
-        }
-    except Exception:
+        from database import get_cli_stats
+        return get_cli_stats()
+    except Exception as e:
+        # Hata durumunda varsayılan değerleri dön
         return {'blocked_count': 0, 'permanent_count': 0, 'top_violations': []}
 
 
@@ -169,12 +165,12 @@ def format_log_line(line: str) -> str:
 
         now = datetime.now().strftime('%H:%M:%S')
         return (
-            f"\n{R}┌─ 🚫 ENGELLEME {'─'*38}┐{NC}\n"
-            f"{R}│{NC}  {W}IP    :{NC} {R}{BOLD}{ip:<20}{NC}\n"
-            f"{R}│{NC}  {W}Tip   :{NC} {color}{label}{NC}\n"
-            f"{R}│{NC}  {W}Sebep :{NC} {DIM}{reason[:50]}{NC}\n"
-            f"{R}│{NC}  {W}Durum :{NC} {sure}  {DIM}{ihlal}{NC}\n"
-            f"{R}└{'─'*44}┘{NC}"
+            f"\n{R}┌─ 🚫 ENGELLEME {'─' * 39}┐{NC}\n"
+            f"{R}│{NC}  {W}IP    :{NC} {R}{BOLD}{ip:<41}{NC}  {R}│{NC}\n"
+            f"{R}│{NC}  {W}Tip   :{NC} {color}{label:<41}{NC}  {R}│{NC}\n"
+            f"{R}│{NC}  {W}Sebep :{NC} {DIM}{reason[:41]:<41}{NC}  {R}│{NC}\n"
+            f"{R}│{NC}  {W}Durum :{NC} {sure:<25}{ihlal:>16}  {R}│{NC}\n"
+            f"{R}└{'─' * 54}┘{NC}"
         )
 
     # ── ALERT ──────────────────────────────────────────────────────────
@@ -187,27 +183,16 @@ def format_log_line(line: str) -> str:
         sev    = parts[2].strip() if len(parts) > 2 else ''
         imza   = parts[3].strip() if len(parts) > 3 else ''
 
-        # IP ve port'u conn'dan parse et: "IP → port X"
-        ip_str   = ''
-        port_str = ''
-        if '→' in conn:
-            left, _, right = conn.partition('→')
-            ip_str   = left.strip()
-            port_str = right.strip().replace('port', '').strip()
-        else:
-            ip_str = conn
-
         color = ATTACK_COLORS.get(tip, Y)
         label = ATTACK_LABELS.get(tip, tip.upper())
-        sev_num   = sev.replace('sev=', '')
+        sev_num = sev.replace('sev=', '')
         sev_color = R if sev_num in ('1', '2') else Y
-        port_disp = f":{port_str}" if port_str and port_str != '?' else ''
 
         now = datetime.now().strftime('%H:%M:%S')
         return (
             f"{Y}│{NC} {DIM}{now}{NC} {W}ALERT{NC}  "
             f"{color}{label:<20}{NC}  "
-            f"{W}{ip_str}{port_disp}{NC}  "
+            f"{W}{conn}{NC}  "
             f"{sev_color}[sev={sev_num}]{NC}"
         )
 
@@ -322,10 +307,18 @@ def start_dashboard():
     import time as _t; _t.sleep(2)
     check = subprocess.run(['ss', '-tlnp'], capture_output=True, text=True)
     if ':5000' in check.stdout:
-        # Cihaz IP'sini al
-        ip_result = subprocess.run(['hostname', '-I'], capture_output=True, text=True)
-        device_ip = ip_result.stdout.strip().split()[0] if ip_result.stdout.strip() else '<pi-ip>'
-        print(f"  {G}✓{NC}  Dashboard aktif → {C}http://localhost:5000{NC}  |  {C}http://{device_ip}:5000{NC}")
+        # Cihazın yerel IP adresini bul
+        import socket
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            s.connect(('10.255.255.255', 1))
+            lan_ip = s.getsockname()[0]
+        except Exception:
+            lan_ip = '192.168.x.x'
+        finally:
+            s.close()
+            
+        print(f"  {G}✓{NC}  Dashboard aktif → {C}http://localhost:5000{NC} {DIM}|{NC} {C}http://{lan_ip}:5000{NC}")
     else:
         print(f"  {DIM}  Dashboard başlatılamadı (flask kurulu mu?){NC}")
 

@@ -203,7 +203,72 @@ def change_password(username: str, old_password: str, new_password: str) -> tupl
 
 # ── ALERT ────────────────────────────────────────────────────────────────
 
+def save_alert(src_ip: str, dest_port: int, attack_type: str, severity: int, signature: str, category: str):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO alerts (src_ip, dest_port, attack_type, severity, signature, category)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """, (src_ip, dest_port, attack_type, severity, signature, category))
+
+def get_alerts(limit=200) -> list:
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM alerts ORDER BY created_at DESC LIMIT %s", (limit,))
+            return list(cur.fetchall())
+
+def get_alert_stats() -> dict:
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) as total FROM alerts WHERE created_at >= NOW() - INTERVAL 24 HOUR")
+            total = cur.fetchone()['total']
+            
+            cur.execute("SELECT attack_type, COUNT(*) as cnt FROM alerts WHERE created_at >= NOW() - INTERVAL 24 HOUR GROUP BY attack_type")
+            dist = {r['attack_type']: r['cnt'] for r in cur.fetchall()}
+            
+            # Son 24 saatin verisi timeline için
+            cur.execute("""
+                SELECT DATE_FORMAT(created_at, '%H:%i') as time, COUNT(*) as count 
+                FROM alerts 
+                WHERE created_at >= NOW() - INTERVAL 24 HOUR
+                GROUP BY time ORDER BY time ASC
+            """)
+            timeline = list(cur.fetchall())
+            
+            cur.execute("SELECT COUNT(*) as total_all FROM alerts")
+            total_all = cur.fetchone()['total_all']
+            
+            return {
+                'total': total,
+                'total_all': total_all,
+                'dist': dist,
+                'timeline': timeline
+            }
+
 # ── ENGELLEME ────────────────────────────────────────────────────────────
+
+def get_cli_stats() -> dict:
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) as c, SUM(IF(reason LIKE '%permanent%' OR attack_type='dos_attack', 1, 0)) as p FROM blocked_ips WHERE unblocked_at IS NULL")
+            res = cur.fetchone()
+            blocked_count = res['c'] or 0
+            permanent_count = res['p'] or 0
+            
+            cur.execute("""
+                SELECT ip, COUNT(*) as cnt 
+                FROM blocked_ips 
+                GROUP BY ip 
+                ORDER BY cnt DESC 
+                LIMIT 3
+            """)
+            top_violations = [(r['ip'], r['cnt']) for r in cur.fetchall()]
+            
+            return {
+                'blocked_count': blocked_count,
+                'permanent_count': int(permanent_count),
+                'top_violations': top_violations
+            }
 
 def save_block(ip: str, reason: str, attack_type: str) -> int:
     with get_conn() as conn:
@@ -296,6 +361,45 @@ def remove_whitelist(ip: str) -> bool:
             return cur.rowcount > 0
 
 
+def get_ip_report_data(ip: str) -> dict:
+    """Belirli bir IP için detaylı rapor verisi toplar"""
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM alerts WHERE src_ip = %s ORDER BY created_at DESC", (ip,))
+            alerts = list(cur.fetchall())
+            cur.execute("SELECT * FROM blocked_ips WHERE ip = %s ORDER BY blocked_at DESC", (ip,))
+            blocks = list(cur.fetchall())
+            return {
+                'ip': ip,
+                'alerts': alerts,
+                'blocks': blocks,
+                'violation_count': len(blocks)
+            }
+
+
+def get_daily_report_data() -> dict:
+    """Son 24 saatlik sistem özetini toplar"""
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM alerts WHERE created_at >= NOW() - INTERVAL 1 DAY")
+            alerts = list(cur.fetchall())
+            cur.execute("""
+                SELECT src_ip, COUNT(*) as cnt FROM alerts 
+                WHERE created_at >= NOW() - INTERVAL 1 DAY 
+                GROUP BY src_ip ORDER BY cnt DESC LIMIT 5
+            """)
+            top_ips = list(cur.fetchall())
+            cur.execute("SELECT COUNT(*) as cnt FROM blocked_ips WHERE blocked_at >= NOW() - INTERVAL 1 DAY")
+            blocked_today = cur.fetchone()['cnt']
+            
+            return {
+                'alerts_count': len(alerts),
+                'top_ips': top_ips,
+                'blocked_today': blocked_today,
+                'alerts': alerts[:50]
+            }
+
+
 if __name__ == '__main__':
     print('[DB] Veritabanı başlatılıyor...')
     try:
@@ -316,3 +420,4 @@ if __name__ == '__main__':
         print('  sudo mysql -e "CREATE DATABASE netspecter;"')
         print('  sudo mysql -e "CREATE USER \'netspecter\'@\'localhost\' IDENTIFIED BY \'netspecter\';"')
         print('  sudo mysql -e "GRANT ALL PRIVILEGES ON netspecter.* TO \'netspecter\'@\'localhost\';"')
+        print('  sudo mysql -e "FLUSH PRIVILEGES;"')

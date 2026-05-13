@@ -1,412 +1,1090 @@
 <!DOCTYPE html>
 <html lang="tr">
+
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>NetSpecter — Dashboard</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Exo+2:wght@300;400;600;700;900&display=swap" rel="stylesheet">
-<style>
-:root {
-  --bg:#030712; --bg2:#0d1117; --bg3:#111827; --border:#1f2937; --border2:#374151;
-  --text:#e2e8f0; --dim:#64748b; --mute:#334155;
-  --green:#10b981; --red:#ef4444; --yellow:#f59e0b; --cyan:#06b6d4;
-}
-* { margin:0; padding:0; box-sizing:border-box; }
-body { background:var(--bg); color:var(--text); font-family:'Exo 2',sans-serif; font-size:14px; min-height:100vh; overflow-x:hidden; }
-body::before { content:''; position:fixed; inset:0; background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.03) 2px,rgba(0,0,0,.03) 4px); pointer-events:none; z-index:1000; }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NetSpecter — Dashboard</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <link
+    href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Exo+2:wght@300;400;600;700;900&display=swap"
+    rel="stylesheet">
+  <style>
+    :root {
+      --bg: #030712;
+      --bg2: #0d1117;
+      --bg3: #111827;
+      --border: #1f2937;
+      --border2: #374151;
+      --text: #e2e8f0;
+      --dim: #64748b;
+      --mute: #334155;
+      --green: #10b981;
+      --red: #ef4444;
+      --yellow: #f59e0b;
+      --cyan: #06b6d4;
+    }
 
-/* ── HEADER ── */
-header { background:var(--bg2); border-bottom:1px solid var(--border); padding:0 24px; height:56px; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:100; }
-.logo { display:flex; align-items:center; gap:12px; }
-.logo-icon { width:32px; height:32px; border:2px solid var(--green); border-radius:6px; display:flex; align-items:center; justify-content:center; font-family:'Exo 2',sans-serif; font-size:12px; font-weight:900; color:var(--green); animation:pulse-border 2s ease-in-out infinite; }
-@keyframes pulse-border { 0%,100%{box-shadow:0 0 8px rgba(16,185,129,.3)} 50%{box-shadow:0 0 20px rgba(16,185,129,.6)} }
-.logo-text { font-family:'Exo 2',sans-serif; font-size:18px; font-weight:900; letter-spacing:3px; color:var(--text); text-transform:uppercase; }
-.logo-text span { color:var(--green); }
-.header-right { display:flex; align-items:center; gap:10px; }
-.lang-toggle { display:flex; background:var(--bg3); border:1px solid var(--border); border-radius:6px; overflow:hidden; }
-.lang-btn { padding:5px 10px; font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--dim); background:transparent; border:none; cursor:pointer; transition:all .2s; letter-spacing:1px; }
-.lang-btn.active { background:rgba(16,185,129,.1); color:var(--green); }
-.lang-btn:hover:not(.active) { color:var(--text); }
-.btn-header { padding:6px 12px; background:transparent; border:1px solid var(--border2); border-radius:6px; color:var(--dim); font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:1px; cursor:pointer; transition:all .2s; text-decoration:none; display:inline-flex; align-items:center; gap:5px; }
-.btn-header:hover { border-color:var(--green); color:var(--green); }
-.btn-header.danger:hover { border-color:var(--red); color:var(--red); }
-.status-pill { display:flex; align-items:center; gap:8px; padding:6px 14px; border-radius:20px; border:1px solid var(--green); font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:1px; color:var(--green); background:rgba(16,185,129,.05); }
-.status-dot { width:7px; height:7px; border-radius:50%; background:var(--green); animation:blink 1.5s ease-in-out infinite; }
-@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.2} }
-.header-time { font-family:'JetBrains Mono',monospace; font-size:13px; color:var(--dim); letter-spacing:1px; min-width:70px; text-align:right; }
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
 
-/* ── LAYOUT ── */
-.container { max-width:1600px; margin:0 auto; padding:20px 24px; display:grid; gap:16px; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Exo 2', sans-serif;
+      font-size: 14px;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
 
-/* ── STAT CARDS ── */
-.stats-row { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
-.stat-card { background:var(--bg2); border:1px solid var(--border); border-radius:8px; padding:16px 20px; position:relative; overflow:hidden; }
-.stat-card::before { content:''; position:absolute; top:0; left:0; right:0; height:2px; background:var(--accent,var(--green)); opacity:.8; }
-.stat-label { font-size:11px; letter-spacing:2px; text-transform:uppercase; color:var(--dim); font-family:'JetBrains Mono',monospace; margin-bottom:8px; }
-.stat-value { font-family:'Exo 2',sans-serif; font-size:28px; font-weight:700; color:var(--accent,var(--green)); line-height:1; }
-.stat-sub { font-size:11px; color:var(--mute); margin-top:6px; font-family:'JetBrains Mono',monospace; }
-.stat-card.danger { --accent:var(--red); }
-.stat-card.info   { --accent:var(--cyan); }
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0, 0, 0, .03) 2px, rgba(0, 0, 0, .03) 4px);
+      pointer-events: none;
+      z-index: 1000;
+    }
 
-/* ── CHARTS ── */
-.charts-row { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
-.chart-panel { background:var(--bg2); border:1px solid var(--border); border-radius:8px; padding:16px; display:flex; flex-direction:column; height:260px; }
-.chart-title { font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:2px; color:var(--dim); margin-bottom:12px; text-transform:uppercase; }
-.chart-wrap { flex:1; position:relative; min-height:0; }
+    /* ── HEADER ── */
+    header {
+      background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+      padding: 0 24px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
 
-/* ── MAIN GRID ── */
-.main-grid { display:grid; grid-template-columns:3fr 320px; gap:16px; min-height:420px; }
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
 
-/* ── PANEL ── */
-.panel { background:var(--bg2); border:1px solid var(--border); border-radius:8px; display:flex; flex-direction:column; overflow:hidden; }
-.panel-header { padding:12px 16px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; flex-shrink:0; }
-.panel-title { font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:2px; text-transform:uppercase; color:var(--dim); display:flex; align-items:center; gap:8px; }
-.panel-title::before { content:''; width:6px; height:6px; border-radius:50%; background:var(--panel-color,var(--green)); }
-.panel-badge { font-family:'JetBrains Mono',monospace; font-size:11px; padding:2px 8px; border-radius:10px; background:rgba(255,255,255,.05); color:var(--dim); border:1px solid var(--border); }
+    .logo-icon {
+      width: 32px;
+      height: 32px;
+      border: 2px solid var(--green);
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Exo 2', sans-serif;
+      font-size: 12px;
+      font-weight: 900;
+      color: var(--green);
+      animation: pulse-border 2s ease-in-out infinite;
+    }
 
-/* ── ALERT STREAM ── */
-.alert-stream { --panel-color:var(--yellow); }
-.alert-body { flex:1; overflow-y:auto; padding:4px 0; scrollbar-width:thin; scrollbar-color:var(--border2) transparent; }
-.alert-body::-webkit-scrollbar { width:4px; }
-.alert-body::-webkit-scrollbar-thumb { background:var(--border2); border-radius:2px; }
-.alert-row { display:grid; grid-template-columns:62px 130px 160px 1fr 58px; align-items:center; padding:7px 16px; gap:8px; border-bottom:1px solid rgba(255,255,255,.03); transition:background .15s; animation:slide-in .25s ease; }
-@keyframes slide-in { from{opacity:0;transform:translateX(-6px)} to{opacity:1;transform:translateX(0)} }
-.alert-row:hover { background:rgba(255,255,255,.03); }
-.alert-time { font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--mute); }
-.alert-ip   { font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--text); }
-.alert-type { font-size:12px; font-weight:600; }
-.alert-sig  { font-size:11px; color:var(--dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.alert-sev  { font-family:'JetBrains Mono',monospace; font-size:10px; padding:2px 6px; border-radius:4px; text-align:center; }
-.sev-1,.sev-2 { background:rgba(239,68,68,.15); color:var(--red); border:1px solid rgba(239,68,68,.3); }
-.sev-3        { background:rgba(245,158,11,.1);  color:var(--yellow); border:1px solid rgba(245,158,11,.2); }
-.sev-4        { background:rgba(100,116,139,.1); color:var(--dim); border:1px solid var(--border); }
-.legend { display:flex; flex-wrap:wrap; gap:6px; padding:10px 16px; border-top:1px solid var(--border); }
-.legend-item { display:flex; align-items:center; gap:5px; font-size:10px; color:var(--dim); font-family:'JetBrains Mono',monospace; }
-.legend-dot  { width:6px; height:6px; border-radius:50%; flex-shrink:0; }
+    @keyframes pulse-border {
 
-/* ── BLOCKED ── */
-.blocked-panel { --panel-color:var(--red); }
-.blocked-body { flex:1; overflow-y:auto; padding:8px; scrollbar-width:thin; scrollbar-color:var(--border2) transparent; }
-.blocked-item { background:var(--bg3); border:1px solid var(--border); border-radius:6px; padding:10px 12px; margin-bottom:6px; animation:slide-in .25s ease; position:relative; overflow:hidden; }
-.blocked-item::before { content:''; position:absolute; left:0; top:0; bottom:0; width:3px; background:var(--red); }
-.blocked-ip { font-family:'JetBrains Mono',monospace; font-size:13px; color:var(--red); margin-bottom:4px; }
-.blocked-meta { display:flex; justify-content:space-between; align-items:center; margin-top:2px; }
-.blocked-reason { font-size:11px; color:var(--dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:220px; }
-.blocked-time   { font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--mute); }
-.unblock-btn { margin-top:8px; width:100%; padding:5px; background:transparent; border:1px solid var(--border2); border-radius:4px; color:var(--dim); font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:1px; cursor:pointer; transition:all .2s; }
-.unblock-btn:hover { border-color:var(--green); color:var(--green); background:rgba(16,185,129,.05); }
-.empty-state { text-align:center; padding:40px 20px; color:var(--mute); font-family:'JetBrains Mono',monospace; font-size:12px; line-height:2; }
-.empty-icon  { font-size:28px; margin-bottom:8px; }
+      0%,
+      100% {
+        box-shadow: 0 0 8px rgba(16, 185, 129, .3)
+      }
 
-/* ── MODAL ── */
-.modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.75); z-index:500; display:none; align-items:center; justify-content:center; }
-.modal-overlay.open { display:flex; }
-.modal { background:var(--bg2); border:1px solid var(--border); border-radius:10px; width:520px; max-height:80vh; display:flex; flex-direction:column; position:relative; overflow:hidden; }
-.modal::before { content:''; position:absolute; top:0; left:0; right:0; height:2px; background:var(--green); }
-.modal-header { padding:16px 20px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
-.modal-title { font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:2px; text-transform:uppercase; color:var(--dim); }
-.modal-close { width:28px; height:28px; border-radius:4px; border:1px solid var(--border2); background:transparent; color:var(--dim); cursor:pointer; font-size:14px; display:flex; align-items:center; justify-content:center; transition:all .2s; }
-.modal-close:hover { border-color:var(--red); color:var(--red); }
-.modal-body { padding:16px 20px; overflow-y:auto; flex:1; }
-.modal-footer { padding:12px 20px; border-top:1px solid var(--border); display:flex; gap:8px; }
-.wl-input { flex:1; padding:9px 12px; background:var(--bg3); border:1px solid var(--border); border-radius:6px; color:var(--text); font-family:'JetBrains Mono',monospace; font-size:12px; outline:none; transition:border-color .2s; }
-.wl-input:focus { border-color:var(--green); }
-.wl-add-btn { padding:9px 16px; background:transparent; border:1px solid var(--green); border-radius:6px; color:var(--green); font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:1px; cursor:pointer; transition:all .2s; white-space:nowrap; }
-.wl-add-btn:hover { background:rgba(16,185,129,.1); }
-.wl-item { display:flex; align-items:center; justify-content:space-between; padding:10px 12px; background:var(--bg3); border:1px solid var(--border); border-radius:6px; margin-bottom:6px; }
-.wl-ip   { font-family:'JetBrains Mono',monospace; font-size:13px; color:var(--green); }
-.wl-desc { font-size:11px; color:var(--dim); margin-top:2px; }
-.wl-del  { width:26px; height:26px; border-radius:4px; border:1px solid var(--border2); background:transparent; color:var(--dim); cursor:pointer; font-size:12px; display:flex; align-items:center; justify-content:center; transition:all .2s; flex-shrink:0; }
-.wl-del:hover { border-color:var(--red); color:var(--red); }
-
-.flash-overlay { position:fixed; inset:0; pointer-events:none; z-index:999; opacity:0; }
-@keyframes flash { 0%{opacity:.15} 100%{opacity:0} }
-</style>
-</head>
-<body>
-<div class="flash-overlay" id="flashOverlay"></div>
-
-<header>
-  <div class="logo">
-    <div class="logo-icon">NS</div>
-    <div class="logo-text">NET<span>SPECTER</span></div>
-  </div>
-  <div class="header-right">
-    <div class="lang-toggle">
-      <button class="lang-btn active" id="dashBtnTR" onclick="setLang('tr')">TR</button>
-      <button class="lang-btn"        id="dashBtnEN" onclick="setLang('en')">EN</button>
-    </div>
-    <div class="status-pill">
-      <div class="status-dot"></div>
-      <span id="statusText">SİSTEM AKTİF</span>
-    </div>
-    <button class="btn-header" onclick="openWhitelist()">🛡️ <span id="lblWhitelistBtn">Whitelist</span></button>
-    <a href="/settings" class="btn-header">⚙️ <span id="lblSettingsBtn">Ayarlar</span></a>
-    <a href="/logout"   class="btn-header danger">⏻ <span id="lblLogoutBtn">Çıkış</span></a>
-    <div class="header-time" id="headerTime">--:--:--</div>
-  </div>
-</header>
-
-<div class="container">
-  <!-- 4 Stat Kartı -->
-  <div class="stats-row">
-    <div class="stat-card">
-      <div class="stat-label" id="lblTotalAlerts">Toplam Alert</div>
-      <div class="stat-value" id="statAlerts">0</div>
-      <div class="stat-sub"   id="lblThisSession">Bu oturumda</div>
-    </div>
-    <div class="stat-card danger">
-      <div class="stat-label" id="lblBlocked">Engellenen IP</div>
-      <div class="stat-value" id="statBlocked">0</div>
-      <div class="stat-sub"   id="lblActiveBlock">Aktif engel</div>
-    </div>
-    <div class="stat-card" style="--accent:#ffffff">
-      <div class="stat-label" id="lblWhitelistCard">Whitelist</div>
-      <div class="stat-value" id="statWhitelist">0</div>
-      <div class="stat-sub"   id="lblWhitelistSub">Güvenli IP</div>
-    </div>
-    <div class="stat-card" style="--accent:var(--cyan)">
-      <div class="stat-label" id="lblLastAlert">Son Alert</div>
-      <div class="stat-value" style="font-size:18px" id="statLastAlert">—</div>
-      <div class="stat-sub"   id="statLastType">Bekleniyor...</div>
-    </div>
-  </div>
-
-  <!-- Grafikler -->
-  <div class="charts-row">
-    <div class="chart-panel">
-      <div class="chart-title" id="lblTimeline">⬡ Alert Zaman Çizelgesi</div>
-      <div class="chart-wrap"><canvas id="timelineChart"></canvas></div>
-    </div>
-    <div class="chart-panel">
-      <div class="chart-title" id="lblDist">◈ Saldırı Tipi Dağılımı</div>
-      <div class="chart-wrap"><canvas id="distChart"></canvas></div>
-    </div>
-  </div>
-
-  <!-- Ana Grid: Alert | Blocked -->
-  <div class="main-grid">
-    <div class="panel alert-stream">
-      <div class="panel-header">
-        <div class="panel-title" id="lblLiveAlerts">Canlı Alert Akışı</div>
-        <span class="panel-badge" id="alertCountBadge">0 alert</span>
-      </div>
-      <div class="alert-body" id="alertBody">
-        <div class="empty-state">
-          <div class="empty-icon">📡</div>
-          <div id="emptyAlertsText">Saldırı bekleniyor...</div>
-          <div style="color:var(--mute)" id="emptyListeningText">Suricata dinlemede</div>
-        </div>
-      </div>
-      <div class="legend" id="legend"></div>
-    </div>
-
-    <div class="panel blocked-panel">
-      <div class="panel-header">
-        <div class="panel-title" id="lblBlockedPanel">Engellenen IP'ler</div>
-        <span class="panel-badge" id="blockedCountBadge">0</span>
-      </div>
-      <div class="blocked-body" id="blockedBody">
-        <div class="empty-state">
-          <div class="empty-icon">🛡️</div>
-          <div id="emptyBlockedText">Engellenen IP yok</div>
-          <div style="color:var(--mute)" id="emptyProtectingText">Sistem koruyor</div>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Whitelist Modal -->
-<div class="modal-overlay" id="whitelistModal">
-  <div class="modal">
-    <div class="modal-header">
-      <div class="modal-title" id="wlModalTitle">🛡️ Whitelist Yönetimi</div>
-      <button class="modal-close" onclick="closeWhitelist()">✕</button>
-    </div>
-    <div class="modal-body" id="wlBody">
-      <div style="text-align:center;padding:20px;color:var(--dim);font-family:'JetBrains Mono',monospace;font-size:12px;" id="wlLoading">Yükleniyor...</div>
-    </div>
-    <div class="modal-footer">
-      <input class="wl-input" id="wlIp"   placeholder="192.168.1.x">
-      <input class="wl-input" id="wlDesc" placeholder="Açıklama">
-      <button class="wl-add-btn" id="wlAddBtn" onclick="addWhitelist()">+ Ekle</button>
-    </div>
-  </div>
-</div>
-
-<script>
-// ── i18n ──────────────────────────────────────────────────────────────
-const i18n = {
-  tr: {
-    statusText:       'SİSTEM AKTİF',
-    lblTotalAlerts:   'Toplam Alert',
-    lblBlocked:       'Engellenen IP',
-    lblWhitelistCard: 'Whitelist',
-    lblWhitelistSub:  'Güvenli IP',
-    lblLastAlert:     'Son Alert',
-    lblThisSession:   'Bu oturumda',
-    lblActiveBlock:   'Aktif engel',
-    lblTimeline:      '⬡ Alert Zaman Çizelgesi',
-    lblDist:          '◈ Saldırı Tipi Dağılımı',
-    lblLiveAlerts:    'Canlı Alert Akışı',
-    lblBlockedPanel:  "Engellenen IP'ler",
-    alertBadge:       'alert',
-    waiting:          'Bekleniyor...',
-    emptyAlerts:      'Saldırı bekleniyor...',
-    emptyListening:   'Suricata dinlemede',
-    emptyBlocked:     'Engellenen IP yok',
-    emptyProtecting:  'Sistem koruyor',
-    unblockBtn:       'ENGELİ KALDIR',
-    lblWhitelistBtn:  'Whitelist',
-    lblSettingsBtn:   'Ayarlar',
-    lblLogoutBtn:     'Çıkış',
-    wlModalTitle:     '🛡️ Whitelist Yönetimi',
-    wlLoading:        'Yükleniyor...',
-    wlEmpty:          'Whitelist boş',
-    wlAddBtn:         '+ Ekle',
-  },
-  en: {
-    statusText:       'SYSTEM ACTIVE',
-    lblTotalAlerts:   'Total Alerts',
-    lblBlocked:       'Blocked IPs',
-    lblWhitelistCard: 'Whitelist',
-    lblWhitelistSub:  'Safe IPs',
-    lblLastAlert:     'Last Alert',
-    lblThisSession:   'This session',
-    lblActiveBlock:   'Active blocks',
-    lblTimeline:      '⬡ Alert Timeline',
-    lblDist:          '◈ Attack Type Distribution',
-    lblLiveAlerts:    'Live Alert Feed',
-    lblBlockedPanel:  'Blocked IPs',
-    alertBadge:       'alerts',
-    waiting:          'Waiting...',
-    emptyAlerts:      'Waiting for attacks...',
-    emptyListening:   'Suricata listening',
-    emptyBlocked:     'No blocked IPs',
-    emptyProtecting:  'System protecting',
-    unblockBtn:       'UNBLOCK',
-    lblWhitelistBtn:  'Whitelist',
-    lblSettingsBtn:   'Settings',
-    lblLogoutBtn:     'Logout',
-    wlModalTitle:     '🛡️ Whitelist Management',
-    wlLoading:        'Loading...',
-    wlEmpty:          'Whitelist is empty',
-    wlAddBtn:         '+ Add',
-  }
-};
-
-let lang = localStorage.getItem('ns_lang') || 'tr';
-
-function setLang(l) {
-  lang = l;
-  localStorage.setItem('ns_lang', l);
-  document.getElementById('dashBtnTR').classList.toggle('active', l === 'tr');
-  document.getElementById('dashBtnEN').classList.toggle('active', l === 'en');
-  const t   = i18n[l];
-  const set = (id, val) => { const e = document.getElementById(id); if (e) e.textContent = val; };
-  set('statusText',       t.statusText);
-  set('lblTotalAlerts',   t.lblTotalAlerts);
-  set('lblBlocked',       t.lblBlocked);
-  set('lblWhitelistCard', t.lblWhitelistCard);
-  set('lblWhitelistSub',  t.lblWhitelistSub);
-  set('lblLastAlert',     t.lblLastAlert);
-  set('lblThisSession',   t.lblThisSession);
-  set('lblActiveBlock',   t.lblActiveBlock);
-  set('lblTimeline',      t.lblTimeline);
-  set('lblDist',          t.lblDist);
-  set('lblLiveAlerts',    t.lblLiveAlerts);
-  set('lblBlockedPanel',  t.lblBlockedPanel);
-  set('lblWhitelistBtn',  t.lblWhitelistBtn);
-  set('lblSettingsBtn',   t.lblSettingsBtn);
-  set('lblLogoutBtn',     t.lblLogoutBtn);
-  set('wlModalTitle',     t.wlModalTitle);
-  set('alertCountBadge',  alertCount + ' ' + t.alertBadge);
-  if (document.getElementById('statLastAlert').textContent === '—') set('statLastType', t.waiting);
-  else {
-    const lastType = document.getElementById('statLastType').textContent;
-    // Son alert tipini mevcut dile çevir
-    const allLabels = {...LABELS_TR, ...LABELS_EN};
-    for (const [key, label] of Object.entries(lang === 'tr' ? LABELS_EN : LABELS_TR)) {
-      if (lastType === label) {
-        document.getElementById('statLastType').textContent = getLabel(key);
-        break;
+      50% {
+        box-shadow: 0 0 20px rgba(16, 185, 129, .6)
       }
     }
-  }
-  const emptyA = document.querySelector('#alertBody .empty-state');
-  if (emptyA) { set('emptyAlertsText', t.emptyAlerts); set('emptyListeningText', t.emptyListening); }
-  const emptyB = document.querySelector('#blockedBody .empty-state');
-  if (emptyB) { set('emptyBlockedText', t.emptyBlocked); set('emptyProtectingText', t.emptyProtecting); }
-  renderLegend();
-}
 
-// ── Renk/etiket ──────────────────────────────────────────────────────
-const COLORS = { nmap_scan:'#f59e0b', brute_force_ssh:'#ef4444', brute_force_ftp:'#f97316', brute_force_http:'#ec4899', dos_attack:'#a855f7', exploit:'#dc2626', malware:'#ff2020', web_attack:'#06b6d4', info_leak:'#64748b', unknown:'#334155' };
-const LABELS_TR = { nmap_scan:'Port Tarama', brute_force_ssh:'SSH Brute Force', brute_force_ftp:'FTP Brute Force', brute_force_http:'HTTP Brute Force', dos_attack:'DoS Saldırısı', exploit:'Exploit', malware:'Malware', web_attack:'Web Saldırısı', info_leak:'Bilgi Sızıntısı', unknown:'Bilinmeyen' };
-const LABELS_EN = { nmap_scan:'Port Scan', brute_force_ssh:'SSH Brute Force', brute_force_ftp:'FTP Brute Force', brute_force_http:'HTTP Brute Force', dos_attack:'DoS Attack', exploit:'Exploit', malware:'Malware', web_attack:'Web Attack', info_leak:'Info Leak', unknown:'Unknown' };
-const getLabel = k => (lang === 'tr' ? LABELS_TR : LABELS_EN)[k] || k;
+    .logo-text {
+      font-family: 'Exo 2', sans-serif;
+      font-size: 18px;
+      font-weight: 900;
+      letter-spacing: 3px;
+      color: var(--text);
+      text-transform: uppercase;
+    }
 
-let alertCount = 0, distData = {}, timelineData = [];
-let timelineChart, distChart;
+    .logo-text span {
+      color: var(--green);
+    }
 
-function updateClock() {
-  const n = new Date();
-  document.getElementById('headerTime').textContent =
-    String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0')+':'+String(n.getSeconds()).padStart(2,'0');
-}
-setInterval(updateClock, 1000); updateClock();
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
 
-function initCharts() {
-  Chart.defaults.color = '#64748b';
-  Chart.defaults.font.family = "'JetBrains Mono', monospace";
-  Chart.defaults.font.size = 11;
-  timelineChart = new Chart(document.getElementById('timelineChart'), {
-    type:'line', data:{ labels:[], datasets:[{ label:'Alert', data:[], borderColor:'#f59e0b', backgroundColor:'rgba(245,158,11,.08)', borderWidth:2, pointRadius:3, pointBackgroundColor:'#f59e0b', fill:true, tension:.4 }] },
-    options:{ responsive:true, maintainAspectRatio:false, animation:{duration:300}, plugins:{legend:{display:false}}, scales:{ x:{grid:{color:'rgba(255,255,255,.04)'}, ticks:{maxTicksLimit:8}}, y:{grid:{color:'rgba(255,255,255,.04)'}, beginAtZero:true, ticks:{stepSize:1}} } }
-  });
-  distChart = new Chart(document.getElementById('distChart'), {
-    type:'doughnut', data:{ labels:[], datasets:[{ data:[], backgroundColor:[], borderWidth:0, hoverOffset:6 }] },
-    options:{ responsive:true, maintainAspectRatio:false, animation:{duration:400}, cutout:'65%', plugins:{legend:{position:'right', labels:{boxWidth:10, padding:12}}} }
-  });
-}
+    .lang-toggle {
+      display: flex;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+    }
 
-function updateDistChart() {
-  const labels=[], data=[], colors=[];
-  for (const [k,v] of Object.entries(distData)) { if(v>0){ labels.push(getLabel(k)); data.push(v); colors.push(COLORS[k]||'#334155'); } }
-  distChart.data.labels=labels; distChart.data.datasets[0].data=data; distChart.data.datasets[0].backgroundColor=colors; distChart.update('none');
-}
-function updateTimelineChart() {
-  timelineChart.data.labels=timelineData.map(d=>d.time); timelineChart.data.datasets[0].data=timelineData.map(d=>d.count); timelineChart.update('none');
-}
-function renderLegend() {
-  document.getElementById('legend').innerHTML = Object.entries(COLORS).map(([k,c])=>
-    `<div class="legend-item"><div class="legend-dot" style="background:${c}"></div>${getLabel(k)}</div>`).join('');
-}
+    .lang-btn {
+      padding: 5px 10px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      color: var(--dim);
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      transition: all .2s;
+      letter-spacing: 1px;
+    }
 
-function makeAlertRow(a) {
-  const color = COLORS[a.attack_type]||'#64748b';
-  return `<div class="alert-row">
+    .lang-btn.active {
+      background: rgba(16, 185, 129, .1);
+      color: var(--green);
+    }
+
+    .lang-btn:hover:not(.active) {
+      color: var(--text);
+    }
+
+    .btn-header {
+      padding: 6px 12px;
+      background: transparent;
+      border: 1px solid var(--border2);
+      border-radius: 6px;
+      color: var(--dim);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 1px;
+      cursor: pointer;
+      transition: all .2s;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .btn-header:hover {
+      border-color: var(--green);
+      color: var(--text);
+      background: rgba(16, 185, 129, .1);
+    }
+
+    .btn-report {
+      color: var(--dim);
+      text-decoration: none;
+      font-size: 14px;
+      display: flex;
+      justify-content: center;
+      transition: all .2s;
+    }
+
+    .btn-report:hover {
+      color: var(--cyan);
+      transform: scale(1.2);
+    }
+
+    .btn-header.danger:hover {
+      border-color: var(--red);
+      color: var(--red);
+    }
+
+    .status-pill {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      border-radius: 20px;
+      border: 1px solid var(--green);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 1px;
+      color: var(--green);
+      background: rgba(16, 185, 129, .05);
+    }
+
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--green);
+      animation: blink 1.5s ease-in-out infinite;
+    }
+
+    @keyframes blink {
+
+      0%,
+      100% {
+        opacity: 1
+      }
+
+      50% {
+        opacity: .2
+      }
+    }
+
+    .header-time {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      color: var(--dim);
+      letter-spacing: 1px;
+      min-width: 70px;
+      text-align: right;
+    }
+
+    /* ── LAYOUT ── */
+    .container {
+      max-width: 1600px;
+      margin: 0 auto;
+      padding: 20px 24px;
+      display: grid;
+      gap: 16px;
+    }
+
+    /* ── STAT CARDS ── */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+    }
+
+    .stat-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px 20px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .stat-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: var(--accent, var(--green));
+      opacity: .8;
+    }
+
+    .stat-label {
+      font-size: 11px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--dim);
+      font-family: 'JetBrains Mono', monospace;
+      margin-bottom: 8px;
+    }
+
+    .stat-value {
+      font-family: 'Exo 2', sans-serif;
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--accent, var(--green));
+      line-height: 1;
+    }
+
+    .stat-sub {
+      font-size: 11px;
+      color: var(--mute);
+      margin-top: 6px;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .stat-card.danger {
+      --accent: var(--red);
+    }
+
+    .stat-card.info {
+      --accent: var(--cyan);
+    }
+
+    /* ── CHARTS ── */
+    .charts-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .chart-panel {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      height: 260px;
+    }
+
+    .chart-title {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 2px;
+      color: var(--dim);
+      margin-bottom: 12px;
+      text-transform: uppercase;
+    }
+
+    .chart-wrap {
+      flex: 1;
+      position: relative;
+      min-height: 0;
+    }
+
+    /* ── MAIN GRID ── */
+    .main-grid {
+      display: grid;
+      grid-template-columns: 3fr 320px;
+      gap: 16px;
+      min-height: 420px;
+    }
+
+    /* ── PANEL ── */
+    .panel {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .panel-header {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+
+    .panel-title {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--dim);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .panel-title::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--panel-color, var(--green));
+    }
+
+    .panel-badge {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, .05);
+      color: var(--dim);
+      border: 1px solid var(--border);
+    }
+
+    /* ── ALERT STREAM ── */
+    .alert-stream {
+      --panel-color: var(--yellow);
+    }
+
+    .alert-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 4px 0;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border2) transparent;
+    }
+
+    .alert-body::-webkit-scrollbar {
+      width: 4px;
+    }
+
+    .alert-body::-webkit-scrollbar-thumb {
+      background: var(--border2);
+      border-radius: 2px;
+    }
+
+    .alert-row {
+      display: grid;
+      grid-template-columns: 110px 130px 160px 1fr 58px 40px;
+      align-items: center;
+      padding: 7px 16px;
+      gap: 8px;
+      border-bottom: 1px solid rgba(255, 255, 255, .03);
+      transition: background .15s;
+      animation: slide-in .25s ease;
+    }
+
+    @keyframes slide-in {
+      from {
+        opacity: 0;
+        transform: translateX(-6px)
+      }
+
+      to {
+        opacity: 1;
+        transform: translateX(0)
+      }
+    }
+
+    .alert-row:hover {
+      background: rgba(255, 255, 255, .03);
+    }
+
+    .alert-time {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: var(--mute);
+    }
+
+    .alert-ip {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      color: var(--text);
+    }
+
+    .alert-type {
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .alert-sig {
+      font-size: 11px;
+      color: var(--dim);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .alert-sev {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      text-align: center;
+    }
+
+    .sev-1,
+    .sev-2 {
+      background: rgba(239, 68, 68, .15);
+      color: var(--red);
+      border: 1px solid rgba(239, 68, 68, .3);
+    }
+
+    .sev-3 {
+      background: rgba(245, 158, 11, .1);
+      color: var(--yellow);
+      border: 1px solid rgba(245, 158, 11, .2);
+    }
+
+    .sev-4 {
+      background: rgba(100, 116, 139, .1);
+      color: var(--dim);
+      border: 1px solid var(--border);
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 10px 16px;
+      border-top: 1px solid var(--border);
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 10px;
+      color: var(--dim);
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .legend-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    /* ── BLOCKED ── */
+    .blocked-panel {
+      --panel-color: var(--red);
+    }
+
+    .blocked-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border2) transparent;
+    }
+
+    .blocked-item {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px 12px;
+      margin-bottom: 6px;
+      animation: slide-in .25s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .blocked-item::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 3px;
+      background: var(--red);
+    }
+
+    .blocked-ip {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      color: var(--red);
+      margin-bottom: 4px;
+    }
+
+    .blocked-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 2px;
+    }
+
+    .blocked-reason {
+      font-size: 11px;
+      color: var(--dim);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 220px;
+    }
+
+    .blocked-time {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      color: var(--mute);
+    }
+
+    .unblock-btn {
+      margin-top: 8px;
+      width: 100%;
+      padding: 5px;
+      background: transparent;
+      border: 1px solid var(--border2);
+      border-radius: 4px;
+      color: var(--dim);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 1px;
+      cursor: pointer;
+      transition: all .2s;
+    }
+
+    .unblock-btn:hover {
+      border-color: var(--green);
+      color: var(--green);
+      background: rgba(16, 185, 129, .05);
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--mute);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      line-height: 2;
+    }
+
+    .empty-icon {
+      font-size: 28px;
+      margin-bottom: 8px;
+    }
+
+    /* ── MODAL ── */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, .75);
+      z-index: 500;
+      display: none;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-overlay.open {
+      display: flex;
+    }
+
+    .modal {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      width: 520px;
+      max-height: 80vh;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .modal::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: var(--green);
+    }
+
+    .modal-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .modal-title {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--dim);
+    }
+
+    .modal-close {
+      width: 28px;
+      height: 28px;
+      border-radius: 4px;
+      border: 1px solid var(--border2);
+      background: transparent;
+      color: var(--dim);
+      cursor: pointer;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all .2s;
+    }
+
+    .modal-close:hover {
+      border-color: var(--red);
+      color: var(--red);
+    }
+
+    .modal-body {
+      padding: 16px 20px;
+      overflow-y: auto;
+      flex: 1;
+    }
+
+    .modal-footer {
+      padding: 12px 20px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 8px;
+    }
+
+    .wl-input {
+      flex: 1;
+      padding: 9px 12px;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      outline: none;
+      transition: border-color .2s;
+    }
+
+    .wl-input:focus {
+      border-color: var(--green);
+    }
+
+    .wl-add-btn {
+      padding: 9px 16px;
+      background: transparent;
+      border: 1px solid var(--green);
+      border-radius: 6px;
+      color: var(--green);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 1px;
+      cursor: pointer;
+      transition: all .2s;
+      white-space: nowrap;
+    }
+
+    .wl-add-btn:hover {
+      background: rgba(16, 185, 129, .1);
+    }
+
+    .wl-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      margin-bottom: 6px;
+    }
+
+    .wl-ip {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      color: var(--green);
+    }
+
+    .wl-desc {
+      font-size: 11px;
+      color: var(--dim);
+      margin-top: 2px;
+    }
+
+    .wl-del {
+      width: 26px;
+      height: 26px;
+      border-radius: 4px;
+      border: 1px solid var(--border2);
+      background: transparent;
+      color: var(--dim);
+      cursor: pointer;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all .2s;
+      flex-shrink: 0;
+    }
+
+    .wl-del:hover {
+      border-color: var(--red);
+      color: var(--red);
+    }
+
+    .flash-overlay {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 999;
+      opacity: 0;
+    }
+
+    @keyframes flash {
+      0% {
+        opacity: .15
+      }
+
+      100% {
+        opacity: 0
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="flash-overlay" id="flashOverlay"></div>
+
+  <header>
+    <div class="logo">
+      <div class="logo-icon">NS</div>
+      <div class="logo-text">NET<span>SPECTER</span></div>
+    </div>
+    <div class="header-right">
+      <div class="lang-toggle">
+        <button class="lang-btn active" id="dashBtnTR" onclick="setLang('tr')">TR</button>
+        <button class="lang-btn" id="dashBtnEN" onclick="setLang('en')">EN</button>
+      </div>
+      <div class="status-pill">
+        <div class="status-dot"></div>
+        <span id="statusText">SİSTEM AKTİF</span>
+      </div>
+      <button class="btn-header" onclick="openWhitelist()">🛡️ <span id="lblWhitelistBtn">Whitelist</span></button>
+      <a href="/api/report/daily" target="_blank" class="btn-header">📄 <span id="lblDailyReport">Günlük Rapor</span></a>
+      <a href="/settings" class="btn-header">⚙️ <span id="lblSettingsBtn">Ayarlar</span></a>
+      <a href="/logout" class="btn-header danger">⏻ <span id="lblLogoutBtn">Çıkış</span></a>
+      <div class="header-time" id="headerTime">--:--:--</div>
+    </div>
+  </header>
+
+  <div class="container">
+    <!-- 4 Stat Kartı -->
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-label" id="lblTotalAlerts">Toplam Alert</div>
+        <div class="stat-value" id="statAlerts">0</div>
+        <div class="stat-sub" id="lblThisSession">Bu oturumda</div>
+      </div>
+      <div class="stat-card danger">
+        <div class="stat-label" id="lblBlocked">Engellenen IP</div>
+        <div class="stat-value" id="statBlocked">0</div>
+        <div class="stat-sub" id="lblActiveBlock">Aktif engel</div>
+      </div>
+      <div class="stat-card" style="--accent:#ffffff">
+        <div class="stat-label" id="lblWhitelistCard">Whitelist</div>
+        <div class="stat-value" id="statWhitelist">0</div>
+        <div class="stat-sub" id="lblWhitelistSub">Güvenli IP</div>
+      </div>
+      <div class="stat-card" style="--accent:var(--cyan)">
+        <div class="stat-label" id="lblLastAlert">Son Alert</div>
+        <div class="stat-value" style="font-size:18px" id="statLastAlert">—</div>
+        <div class="stat-sub" id="statLastType">Bekleniyor...</div>
+      </div>
+    </div>
+
+    <!-- Grafikler -->
+    <div class="charts-row">
+      <div class="chart-panel">
+        <div class="chart-title" id="lblTimeline">⬡ Alert Zaman Çizelgesi</div>
+        <div class="chart-wrap"><canvas id="timelineChart"></canvas></div>
+      </div>
+      <div class="chart-panel">
+        <div class="chart-title" id="lblDist">◈ Saldırı Tipi Dağılımı</div>
+        <div class="chart-wrap"><canvas id="distChart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- Ana Grid: Alert | Blocked -->
+    <div class="main-grid">
+      <div class="panel alert-stream">
+        <div class="panel-header">
+          <div class="panel-title" id="lblLiveAlerts">Canlı Alert Akışı</div>
+          <span class="panel-badge" id="alertCountBadge">0 alert</span>
+        </div>
+        <div class="alert-body" id="alertBody">
+          <div class="empty-state">
+            <div class="empty-icon">📡</div>
+            <div id="emptyAlertsText">Saldırı bekleniyor...</div>
+            <div style="color:var(--mute)" id="emptyListeningText">Suricata dinlemede</div>
+          </div>
+        </div>
+        <div class="legend" id="legend"></div>
+      </div>
+
+      <div class="panel blocked-panel">
+        <div class="panel-header">
+          <div class="panel-title" id="lblBlockedPanel">Engellenen IP'ler</div>
+          <span class="panel-badge" id="blockedCountBadge">0</span>
+        </div>
+        <div class="blocked-body" id="blockedBody">
+          <div class="empty-state">
+            <div class="empty-icon">🛡️</div>
+            <div id="emptyBlockedText">Engellenen IP yok</div>
+            <div style="color:var(--mute)" id="emptyProtectingText">Sistem koruyor</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Whitelist Modal -->
+  <div class="modal-overlay" id="whitelistModal">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title" id="wlModalTitle">🛡️ Whitelist Yönetimi</div>
+        <button class="modal-close" onclick="closeWhitelist()">✕</button>
+      </div>
+      <div class="modal-body" id="wlBody">
+        <div
+          style="text-align:center;padding:20px;color:var(--dim);font-family:'JetBrains Mono',monospace;font-size:12px;"
+          id="wlLoading">Yükleniyor...</div>
+      </div>
+      <div class="modal-footer">
+        <input class="wl-input" id="wlIp" placeholder="192.168.1.x">
+        <input class="wl-input" id="wlDesc" placeholder="Açıklama">
+        <button class="wl-add-btn" id="wlAddBtn" onclick="addWhitelist()">+ Ekle</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ── i18n ──────────────────────────────────────────────────────────────
+    const i18n = {
+      tr: {
+        statusText: 'SİSTEM AKTİF',
+        lblTotalAlerts: 'Saldırı (24s)',
+        lblBlocked: 'Engellenen IP',
+        lblWhitelistCard: 'Whitelist',
+        lblWhitelistSub: 'Güvenli IP',
+        lblLastAlert: 'Son Alert',
+        lblThisSession: 'Tüm zamanlar:',
+        lblActiveBlock: 'Aktif engel',
+        lblTimeline: '⬡ Alert Zaman Çizelgesi',
+        lblDist: '◈ Saldırı Tipi Dağılımı',
+        lblLiveAlerts: 'Canlı Alert Akışı',
+        lblBlockedPanel: "Engellenen IP'ler",
+        alertBadge: 'alert',
+        waiting: 'Bekleniyor...',
+        emptyAlerts: 'Saldırı bekleniyor...',
+        emptyListening: 'Suricata dinlemede',
+        emptyBlocked: 'Engellenen IP yok',
+        emptyProtecting: 'Sistem koruyor',
+        unblockBtn: 'ENGELİ KALDIR',
+        lblWhitelistBtn: 'Whitelist',
+        lblSettingsBtn: 'Ayarlar',
+        lblLogoutBtn: 'Çıkış',
+        wlModalTitle: '🛡️ Whitelist Yönetimi',
+        wlLoading: 'Yükleniyor...',
+        wlEmpty: 'Whitelist boş',
+        wlAddBtn: '+ Ekle',
+        lblDailyReport: 'Günlük Rapor',
+        lblIpReport: 'PDF Raporu',
+      },
+      en: {
+        statusText: 'SYSTEM ACTIVE',
+        lblTotalAlerts: 'Alerts (24h)',
+        lblBlocked: 'Blocked IPs',
+        lblWhitelistCard: 'Whitelist',
+        lblWhitelistSub: 'Safe IPs',
+        lblLastAlert: 'Last Alert',
+        lblThisSession: 'All time total:',
+        lblActiveBlock: 'Active blocks',
+        lblTimeline: '⬡ Alert Timeline',
+        lblDist: '◈ Attack Type Distribution',
+        lblLiveAlerts: 'Live Alert Feed',
+        lblBlockedPanel: 'Blocked IPs',
+        alertBadge: 'alerts',
+        waiting: 'Waiting...',
+        emptyAlerts: 'Waiting for attacks...',
+        emptyListening: 'Suricata listening',
+        emptyBlocked: 'No blocked IPs',
+        emptyProtecting: 'System protecting',
+        unblockBtn: 'UNBLOCK',
+        lblWhitelistBtn: 'Whitelist',
+        lblSettingsBtn: 'Settings',
+        lblLogoutBtn: 'Logout',
+        wlModalTitle: '🛡️ Whitelist Management',
+        wlLoading: 'Loading...',
+        wlEmpty: 'Whitelist is empty',
+        wlAddBtn: '+ Add',
+        lblDailyReport: 'Daily Report',
+        lblIpReport: 'PDF Report',
+      }
+    };
+
+    let lang = localStorage.getItem('ns_lang') || 'tr';
+
+    function setLang(l) {
+      lang = l;
+      localStorage.setItem('ns_lang', l);
+      document.getElementById('dashBtnTR').classList.toggle('active', l === 'tr');
+      document.getElementById('dashBtnEN').classList.toggle('active', l === 'en');
+      const t = i18n[l];
+      const set = (id, val) => { const e = document.getElementById(id); if (e) e.textContent = val; };
+      set('statusText', t.statusText);
+      set('lblTotalAlerts', t.lblTotalAlerts);
+      set('lblBlocked', t.lblBlocked);
+      set('lblWhitelistCard', t.lblWhitelistCard);
+      set('lblWhitelistSub', t.lblWhitelistSub);
+      set('lblLastAlert', t.lblLastAlert);
+      set('lblThisSession', t.lblThisSession);
+      set('lblActiveBlock', t.lblActiveBlock);
+      set('lblTimeline', t.lblTimeline);
+      set('lblDist', t.lblDist);
+      set('lblLiveAlerts', t.lblLiveAlerts);
+      set('lblBlockedPanel', t.lblBlockedPanel);
+      set('lblWhitelistBtn', t.lblWhitelistBtn);
+      set('lblSettingsBtn', t.lblSettingsBtn);
+      set('lblLogoutBtn', t.lblLogoutBtn);
+      set('wlModalTitle', t.wlModalTitle);
+      set('lblDailyReport', t.lblDailyReport);
+      set('alertCountBadge', alertCount + ' ' + t.alertBadge);
+      if (document.getElementById('statLastAlert').textContent === '—') set('statLastType', t.waiting);
+      else {
+        const lastType = document.getElementById('statLastType').textContent;
+        // Son alert tipini mevcut dile çevir
+        const allLabels = { ...LABELS_TR, ...LABELS_EN };
+        for (const [key, label] of Object.entries(lang === 'tr' ? LABELS_EN : LABELS_TR)) {
+          if (lastType === label) {
+            document.getElementById('statLastType').textContent = getLabel(key);
+            break;
+          }
+        }
+      }
+      const emptyA = document.querySelector('#alertBody .empty-state');
+      if (emptyA) { set('emptyAlertsText', t.emptyAlerts); set('emptyListeningText', t.emptyListening); }
+      const emptyB = document.querySelector('#blockedBody .empty-state');
+      if (emptyB) { set('emptyBlockedText', t.emptyBlocked); set('emptyProtectingText', t.emptyProtecting); }
+      renderLegend();
+    }
+
+    // ── Renk/etiket ──────────────────────────────────────────────────────
+    const COLORS = { nmap_scan: '#f59e0b', brute_force_ssh: '#ef4444', brute_force_ftp: '#f97316', brute_force_http: '#ec4899', dos_attack: '#a855f7', exploit: '#dc2626', malware: '#ff2020', web_attack: '#06b6d4', info_leak: '#64748b', unknown: '#334155' };
+    const LABELS_TR = { nmap_scan: 'Port Tarama', brute_force_ssh: 'SSH Brute Force', brute_force_ftp: 'FTP Brute Force', brute_force_http: 'HTTP Brute Force', dos_attack: 'DoS Saldırısı', exploit: 'Exploit', malware: 'Malware', web_attack: 'Web Saldırısı', info_leak: 'Bilgi Sızıntısı', unknown: 'Bilinmeyen' };
+    const LABELS_EN = { nmap_scan: 'Port Scan', brute_force_ssh: 'SSH Brute Force', brute_force_ftp: 'FTP Brute Force', brute_force_http: 'HTTP Brute Force', dos_attack: 'DoS Attack', exploit: 'Exploit', malware: 'Malware', web_attack: 'Web Attack', info_leak: 'Info Leak', unknown: 'Unknown' };
+    const getLabel = k => (lang === 'tr' ? LABELS_TR : LABELS_EN)[k] || k;
+
+    let alertCount = 0, distData = {}, timelineData = [];
+    let timelineChart, distChart;
+
+    function updateClock() {
+      const n = new Date();
+      document.getElementById('headerTime').textContent =
+        String(n.getHours()).padStart(2, '0') + ':' + String(n.getMinutes()).padStart(2, '0') + ':' + String(n.getSeconds()).padStart(2, '0');
+    }
+    setInterval(updateClock, 1000); updateClock();
+
+    function initCharts() {
+      Chart.defaults.color = '#64748b';
+      Chart.defaults.font.family = "'JetBrains Mono', monospace";
+      Chart.defaults.font.size = 11;
+      timelineChart = new Chart(document.getElementById('timelineChart'), {
+        type: 'line', data: { labels: [], datasets: [{ label: 'Alert', data: [], borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,.08)', borderWidth: 2, pointRadius: 3, pointBackgroundColor: '#f59e0b', fill: true, tension: .4 }] },
+        options: { responsive: true, maintainAspectRatio: false, animation: { duration: 300 }, plugins: { legend: { display: false } }, scales: { x: { grid: { color: 'rgba(255,255,255,.04)' }, ticks: { maxTicksLimit: 8 } }, y: { grid: { color: 'rgba(255,255,255,.04)' }, beginAtZero: true } } }
+      });
+      distChart = new Chart(document.getElementById('distChart'), {
+        type: 'doughnut', data: { labels: [], datasets: [{ data: [], backgroundColor: [], borderWidth: 0, hoverOffset: 6 }] },
+        options: { responsive: true, maintainAspectRatio: false, animation: { duration: 400 }, cutout: '65%', plugins: { legend: { position: 'right', labels: { boxWidth: 10, padding: 12 } } } }
+      });
+    }
+
+    function updateDistChart() {
+      const labels = [], data = [], colors = [];
+      for (const [k, v] of Object.entries(distData)) { if (v > 0) { labels.push(getLabel(k)); data.push(v); colors.push(COLORS[k] || '#334155'); } }
+      distChart.data.labels = labels; distChart.data.datasets[0].data = data; distChart.data.datasets[0].backgroundColor = colors; distChart.update('none');
+    }
+    function updateTimelineChart() {
+      timelineChart.data.labels = timelineData.map(d => d.time); timelineChart.data.datasets[0].data = timelineData.map(d => d.count); timelineChart.update('none');
+    }
+    function renderLegend() {
+      document.getElementById('legend').innerHTML = Object.entries(COLORS).map(([k, c]) =>
+        `<div class="legend-item"><div class="legend-dot" style="background:${c}"></div>${getLabel(k)}</div>`).join('');
+    }
+
+    function makeAlertRow(a) {
+      const color = COLORS[a.attack_type] || '#64748b';
+      return `<div class="alert-row">
     <span class="alert-time">${a.time}</span>
     <span class="alert-ip">${a.src_ip}</span>
     <span class="alert-type" style="color:${color}">${getLabel(a.attack_type)}</span>
-    <span class="alert-sig" title="${a.signature||''}">${a.signature||''}</span>
+    <span class="alert-sig" title="${a.signature || ''}">${a.signature || ''}</span>
     <span class="alert-sev sev-${a.severity}">SEV ${a.severity}</span>
+    <a href="/api/report/ip/${a.src_ip}" class="btn-report" target="_blank" title="${i18n[lang].lblIpReport}">📄</a>
   </div>`;
-}
+    }
 
-function renderBlocked(list) {
-  const t = i18n[lang];
-  document.getElementById('blockedCountBadge').textContent = list.length;
-  document.getElementById('statBlocked').textContent       = list.length;
-  const body = document.getElementById('blockedBody');
-  if (!list.length) {
-    body.innerHTML = `<div class="empty-state"><div class="empty-icon">🛡️</div><div id="emptyBlockedText">${t.emptyBlocked}</div><div style="color:var(--mute)" id="emptyProtectingText">${t.emptyProtecting}</div></div>`;
-    return;
-  }
-  body.innerHTML = list.map(item => `
+    function renderBlocked(list) {
+      const t = i18n[lang];
+      document.getElementById('blockedCountBadge').textContent = list.length;
+      document.getElementById('statBlocked').textContent = list.length;
+      const body = document.getElementById('blockedBody');
+      if (!list.length) {
+        body.innerHTML = `<div class="empty-state"><div class="empty-icon">🛡️</div><div id="emptyBlockedText">${t.emptyBlocked}</div><div style="color:var(--mute)" id="emptyProtectingText">${t.emptyProtecting}</div></div>`;
+        return;
+      }
+      body.innerHTML = list.map(item => `
     <div class="blocked-item">
       <div class="blocked-ip">${item.ip}</div>
       <div class="blocked-meta">
@@ -415,120 +1093,122 @@ function renderBlocked(list) {
       </div>
       <button class="unblock-btn" onclick="unblock('${item.ip}')">${t.unblockBtn}</button>
     </div>`).join('');
-}
+    }
 
-function unblock(ip) {
-  fetch('/api/unblock/'+ip,{method:'POST'}).then(r=>r.json()).then(d=>{ if(d.success) loadBlocked(); });
-}
-function loadBlocked() {
-  fetch('/api/blocked').then(r=>r.json()).then(renderBlocked);
-}
+    function unblock(ip) {
+      fetch('/api/unblock/' + ip, { method: 'POST' }).then(r => r.json()).then(d => { if (d.success) loadBlocked(); });
+    }
+    function loadBlocked() {
+      fetch('/api/blocked').then(r => r.json()).then(renderBlocked);
+    }
 
-// ── Whitelist Modal ──────────────────────────────────────────────────
-function openWhitelist() {
-  document.getElementById('whitelistModal').classList.add('open');
-  loadWhitelist();
-}
-function closeWhitelist() {
-  document.getElementById('whitelistModal').classList.remove('open');
-}
-document.getElementById('whitelistModal').addEventListener('click', e => {
-  if (e.target === e.currentTarget) closeWhitelist();
-});
-async function loadWhitelist() {
-  const body = document.getElementById('wlBody');
-  const t    = i18n[lang];
-  body.innerHTML = `<div style="text-align:center;padding:20px;color:var(--dim);font-family:'JetBrains Mono',monospace;font-size:12px;">${t.wlLoading}</div>`;
-  const res  = await fetch('/api/whitelist');
-  const list = await res.json();
-  if (!list.length) {
-    body.innerHTML = `<div style="text-align:center;padding:20px;color:var(--mute);font-family:'JetBrains Mono',monospace;font-size:12px;">${t.wlEmpty}</div>`;
-    return;
-  }
-  body.innerHTML = list.map(item => `
+    // ── Whitelist Modal ──────────────────────────────────────────────────
+    function openWhitelist() {
+      document.getElementById('whitelistModal').classList.add('open');
+      loadWhitelist();
+    }
+    function closeWhitelist() {
+      document.getElementById('whitelistModal').classList.remove('open');
+    }
+    document.getElementById('whitelistModal').addEventListener('click', e => {
+      if (e.target === e.currentTarget) closeWhitelist();
+    });
+    async function loadWhitelist() {
+      const body = document.getElementById('wlBody');
+      const t = i18n[lang];
+      body.innerHTML = `<div style="text-align:center;padding:20px;color:var(--dim);font-family:'JetBrains Mono',monospace;font-size:12px;">${t.wlLoading}</div>`;
+      const res = await fetch('/api/whitelist');
+      const list = await res.json();
+      if (!list.length) {
+        body.innerHTML = `<div style="text-align:center;padding:20px;color:var(--mute);font-family:'JetBrains Mono',monospace;font-size:12px;">${t.wlEmpty}</div>`;
+        return;
+      }
+      body.innerHTML = list.map(item => `
     <div class="wl-item">
-      <div><div class="wl-ip">${item.ip}</div><div class="wl-desc">${item.description||'—'}</div></div>
+      <div><div class="wl-ip">${item.ip}</div><div class="wl-desc">${item.description || '—'}</div></div>
       <button class="wl-del" onclick="removeWhitelist('${item.ip}')">🗑</button>
     </div>`).join('');
-}
-async function addWhitelist() {
-  const ip   = document.getElementById('wlIp').value.trim();
-  const desc = document.getElementById('wlDesc').value.trim();
-  if (!ip) return;
-  const res  = await fetch('/api/whitelist', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ip, description:desc}) });
-  const data = await res.json();
-  if (data.success) { document.getElementById('wlIp').value=''; document.getElementById('wlDesc').value=''; loadWhitelist(); }
-  else alert(data.message||'Eklenemedi');
-}
-async function removeWhitelist(ip) {
-  await fetch('/api/whitelist/'+encodeURIComponent(ip),{method:'DELETE'});
-  loadWhitelist();
-}
+    }
+    async function addWhitelist() {
+      const ip = document.getElementById('wlIp').value.trim();
+      const desc = document.getElementById('wlDesc').value.trim();
+      if (!ip) return;
+      const res = await fetch('/api/whitelist', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ip, description: desc }) });
+      const data = await res.json();
+      if (data.success) { document.getElementById('wlIp').value = ''; document.getElementById('wlDesc').value = ''; loadWhitelist(); }
+      else alert(data.message || 'Eklenemedi');
+    }
+    async function removeWhitelist(ip) {
+      await fetch('/api/whitelist/' + encodeURIComponent(ip), { method: 'DELETE' });
+      loadWhitelist();
+    }
 
-// ── Flash ────────────────────────────────────────────────────────────
-function flash(color) {
-  const el = document.getElementById('flashOverlay');
-  el.style.background=color+'22'; el.style.animation='none'; void el.offsetWidth; el.style.animation='flash .4s ease forwards';
-}
+    // ── Flash ────────────────────────────────────────────────────────────
+    function flash(color) {
+      const el = document.getElementById('flashOverlay');
+      el.style.background = color + '22'; el.style.animation = 'none'; void el.offsetWidth; el.style.animation = 'flash .4s ease forwards';
+    }
 
-// ── Socket.IO ────────────────────────────────────────────────────────
-const socket = io();
-socket.on('new_alert', a => {
-  alertCount++;
-  document.getElementById('alertCountBadge').textContent = alertCount+' '+i18n[lang].alertBadge;
-  document.getElementById('statAlerts').textContent      = alertCount;
-  document.getElementById('statLastAlert').textContent   = a.src_ip;
-  document.getElementById('statLastType').textContent    = getLabel(a.attack_type);
-  distData[a.attack_type] = (distData[a.attack_type]||0)+1;
-  updateDistChart();
-  const minute = a.time.slice(0,5);
-  if (timelineData.length>0 && timelineData[timelineData.length-1].time===minute) timelineData[timelineData.length-1].count++;
-  else { timelineData.push({time:minute,count:1}); if(timelineData.length>30) timelineData.shift(); }
-  updateTimelineChart();
-  const body=document.getElementById('alertBody');
-  const empty=body.querySelector('.empty-state'); if(empty) empty.remove();
-  body.insertAdjacentHTML('afterbegin', makeAlertRow(a));
-  const rows=body.querySelectorAll('.alert-row'); if(rows.length>100) rows[rows.length-1].remove();
-  if(a.severity<=2) flash(COLORS[a.attack_type]||'#ef4444');
-});
-socket.on('blocked_update', renderBlocked);
-socket.on('stats_update', s => {
-  document.getElementById('statBlocked').textContent   = s.blocked_count||0;
-  document.getElementById('statWhitelist').textContent = s.whitelist_count||0;
-});
+    // ── Socket.IO ────────────────────────────────────────────────────────
+    const socket = io();
+    socket.on('new_alert', a => {
+      alertCount++;
+      document.getElementById('alertCountBadge').textContent = alertCount + ' ' + i18n[lang].alertBadge;
+      document.getElementById('statAlerts').textContent = alertCount;
+      document.getElementById('statLastAlert').textContent = a.src_ip;
+      document.getElementById('statLastType').textContent = getLabel(a.attack_type);
+      distData[a.attack_type] = (distData[a.attack_type] || 0) + 1;
+      updateDistChart();
+      const minute = a.time.slice(6, 11);
+      if (timelineData.length > 0 && timelineData[timelineData.length - 1].time === minute) timelineData[timelineData.length - 1].count++;
+      else { timelineData.push({ time: minute, count: 1 }); if (timelineData.length > 1440) timelineData.shift(); }
+      updateTimelineChart();
+      const body = document.getElementById('alertBody');
+      const empty = body.querySelector('.empty-state'); if (empty) empty.remove();
+      body.insertAdjacentHTML('afterbegin', makeAlertRow(a));
+      const rows = body.querySelectorAll('.alert-row'); if (rows.length > 100) rows[rows.length - 1].remove();
+      if (a.severity <= 2) flash(COLORS[a.attack_type] || '#ef4444');
+    });
+    socket.on('blocked_update', renderBlocked);
+    socket.on('stats_update', s => {
+      document.getElementById('statBlocked').textContent = s.blocked_count || 0;
+      document.getElementById('statWhitelist').textContent = s.whitelist_count || 0;
+    });
 
-// ── İlk yükleme ──────────────────────────────────────────────────────
-async function init() {
-  initCharts(); renderLegend(); setLang(lang);
+    // ── İlk yükleme ──────────────────────────────────────────────────────
+    async function init() {
+      initCharts(); renderLegend(); setLang(lang);
 
-  const [stats, blocked, alerts, tl, wl] = await Promise.all([
-    fetch('/api/stats').then(r=>r.json()),
-    fetch('/api/blocked').then(r=>r.json()),
-    fetch('/api/alerts').then(r=>r.json()),
-    fetch('/api/timeline').then(r=>r.json()),
-    fetch('/api/whitelist').then(r=>r.json()),
-  ]);
+      const [stats, blocked, alerts, tl, wl] = await Promise.all([
+        fetch('/api/stats').then(r => r.json()),
+        fetch('/api/blocked').then(r => r.json()),
+        fetch('/api/alerts').then(r => r.json()),
+        fetch('/api/timeline').then(r => r.json()),
+        fetch('/api/whitelist').then(r => r.json()),
+      ]);
 
-  document.getElementById('statBlocked').textContent   = stats.blocked_count||0;
-  document.getElementById('statWhitelist').textContent = wl.length||0;
-  document.getElementById('statAlerts').textContent    = stats.total_alerts||0;
-  alertCount = stats.total_alerts||0;
-  document.getElementById('alertCountBadge').textContent = alertCount+' '+i18n[lang].alertBadge;
+      alertCount = stats.total_alerts || 0;
+      const totalAll = stats.total_all_time || alertCount;
+      document.getElementById('statAlerts').textContent = alertCount;
+      document.getElementById('statBlocked').textContent = stats.blocked_count || 0;
+      document.getElementById('statWhitelist').textContent = stats.whitelist_count || (wl ? wl.length : 0);
+      document.getElementById('lblThisSession').textContent = (lang === 'tr' ? 'Tüm zamanlar: ' : 'All time total: ') + totalAll;
+      document.getElementById('alertCountBadge').textContent = alertCount + ' ' + i18n[lang].alertBadge;
 
-  renderBlocked(blocked);
+      renderBlocked(blocked);
 
-  if (alerts && alerts.length>0) {
-    const body=document.getElementById('alertBody'); body.innerHTML='';
-    alerts.forEach(a=>body.insertAdjacentHTML('beforeend', makeAlertRow(a)));
-    document.getElementById('statLastAlert').textContent = alerts[0].src_ip;
-    document.getElementById('statLastType').textContent  = getLabel(alerts[0].attack_type);
-    alerts.forEach(a=>{ distData[a.attack_type]=(distData[a.attack_type]||0)+1; });
-    updateDistChart();
-  }
-  if (tl && tl.length>0) { timelineData=tl; updateTimelineChart(); }
-}
+      if (alerts && alerts.length > 0) {
+        const body = document.getElementById('alertBody'); body.innerHTML = '';
+        alerts.forEach(a => body.insertAdjacentHTML('beforeend', makeAlertRow(a)));
+        document.getElementById('statLastAlert').textContent = alerts[0].src_ip;
+        document.getElementById('statLastType').textContent = getLabel(alerts[0].attack_type);
+      }
+      if (stats.attack_dist) { distData = stats.attack_dist; updateDistChart(); }
+      if (tl && tl.length > 0) { timelineData = tl; updateTimelineChart(); }
+    }
 
-init();
-</script>
+    init();
+  </script>
 </body>
+
 </html>
