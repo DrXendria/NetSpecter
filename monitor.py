@@ -19,6 +19,60 @@ logger = logging.getLogger(__name__)
 # Her entry: keywords (imza/kategori içinde aranır), action, block_duration
 # -----------------------------------------------------------------------
 SIGNATURES = {
+    'web_attack': {
+        'keywords': ['ET WEB_SERVER', 'ET WEB_SPECIFIC_APPS', 'Web Attack',
+                     'XSS', 'CSRF', 'web shell', 'webshell',
+                     'ET SCAN Rapid', 'Scanner', 'GPL WEB_SERVER', 'GPL SQL_INJECTION',
+                     'Nikto', 'nikto', 'dirb', 'gobuster', 'wfuzz', 'dirbuster',
+                     'sqlmap', 'ffuf', 'feroxbuster', 'wpscan', 'joomscan',
+                     'zap', 'burp', 'acunetix', 'nessus', 'openvas', 'arachni'],
+        'categories': ['Web Attack', 'Potentially Bad Traffic', 'Web Application Attack'],
+        'action': 'block',
+        'block_duration': 3600,
+        'threshold': None,
+    },
+    'nmap_scan': {
+        'keywords': ['ET SCAN', 'nmap', 'NMAP', 'portscan', 'port scan',
+                     'Nmap Scripting', 'OS Detection', 'SYN Stealth',
+                     'NULL Scan', 'XMAS', 'FIN Scan', 'ACK Scan',
+                     'UDP Scan', 'Masscan', 'masscan', 'zmap'],
+        'categories': ['Detection of a Network Scan', 'Network Scan'],
+        'action': 'block',
+        'block_duration': 3600,
+        'threshold': None,
+    },
+    'malware': {
+        'keywords': ['ET MALWARE', 'ET TROJAN', 'malware', 'Malware',
+                     'trojan', 'Trojan', 'botnet', 'Botnet',
+                     'C2', 'Command and Control', 'backdoor', 'ransomware',
+                     'rootkit', 'dropper', 'downloader'],
+        'categories': ['Malware', 'A Network Trojan was detected'],
+        'action': 'block',
+        'block_duration': 604800,
+        'permanent': True,
+        'threshold': None,
+    },
+    'exploit': {
+        'keywords': ['ET EXPLOIT', 'exploit', 'Exploit', 'shellcode',
+                     'buffer overflow', 'Remote Code Execution', 'RCE',
+                     'CVE-', 'Command Injection', 'SQL Injection',
+                     'Path Traversal', 'Directory Traversal',
+                     'LFI', 'RFI', 'SSRF', 'XXE'],
+        'categories': ['Exploit', 'Web Attack', 'Attempted User Privilege Gain',
+                       'Attempted Administrator Privilege Gain'],
+        'action': 'block',
+        'block_duration': 86400,
+        'threshold': None,
+    },
+    'dos_attack': {
+        'keywords': ['ET DOS', 'DoS', 'DDoS', 'flood', 'Flood',
+                     'SYN flood', 'UDP flood', 'ICMP flood', 'HTTP flood',
+                     'Attempted Denial of Service', 'Denial of Service'],
+        'categories': ['Denial of Service', 'Attempted Denial of Service'],
+        'action': 'block',
+        'block_duration': 86400,
+        'threshold': None,
+    },
     'brute_force_ssh': {
         'keywords': ['SSH Scan', 'SSH Brute', 'Potential SSH',
                      'ssh login', 'ET SCAN.*ssh', 'invalid user',
@@ -28,7 +82,7 @@ SIGNATURES = {
         'ports': [22],
         'action': 'block',
         'block_duration': 7200,
-        'threshold': {'max': 3, 'window': 60},  # 60s içinde 3 alert
+        'threshold': {'max': 3, 'window': 60},
     },
     'brute_force_ftp': {
         'keywords': ['FTP Brute', 'ftp brute', 'FTP login', 'ftp.*fail',
@@ -48,60 +102,6 @@ SIGNATURES = {
         'action': 'block',
         'block_duration': 3600,
         'threshold': {'max': 5, 'window': 60},
-    },
-    'dos_attack': {
-        'keywords': ['ET DOS', 'DoS', 'DDoS', 'flood', 'Flood',
-                     'SYN flood', 'UDP flood', 'ICMP flood', 'HTTP flood',
-                     'Attempted Denial of Service', 'Denial of Service'],
-        'categories': ['Denial of Service', 'Attempted Denial of Service'],
-        'action': 'block',
-        'block_duration': 86400,
-        'threshold': None,
-    },
-    'exploit': {
-        'keywords': ['ET EXPLOIT', 'exploit', 'Exploit', 'shellcode',
-                     'buffer overflow', 'Remote Code Execution', 'RCE',
-                     'CVE-', 'Command Injection', 'SQL Injection',
-                     'Path Traversal', 'Directory Traversal',
-                     'LFI', 'RFI', 'SSRF', 'XXE'],
-        'categories': ['Exploit', 'Web Attack', 'Attempted User Privilege Gain',
-                       'Attempted Administrator Privilege Gain'],
-        'action': 'block',
-        'block_duration': 86400,
-        'threshold': None,
-    },
-    'malware': {
-        'keywords': ['ET MALWARE', 'ET TROJAN', 'malware', 'Malware',
-                     'trojan', 'Trojan', 'botnet', 'Botnet',
-                     'C2', 'Command and Control', 'backdoor', 'ransomware',
-                     'rootkit', 'dropper', 'downloader'],
-        'categories': ['Malware', 'A Network Trojan was detected'],
-        'action': 'block',
-        'block_duration': 604800,   # 7 gün
-        'permanent': True,
-        'threshold': None,
-    },
-    'web_attack': {
-        'keywords': ['ET WEB_SERVER', 'ET WEB_SPECIFIC_APPS', 'Web Attack',
-                     'XSS', 'CSRF', 'web shell', 'webshell',
-                     'ET SCAN Rapid', 'Scanner', 'GPL WEB_SERVER', 'GPL SQL_INJECTION',
-                     'Nikto', 'nikto', 'dirb', 'gobuster', 'wfuzz', 'dirbuster',
-                     'sqlmap', 'ffuf', 'feroxbuster', 'wpscan', 'joomscan',
-                     'zap', 'burp', 'acunetix', 'nessus', 'openvas', 'arachni'],
-        'categories': ['Web Attack', 'Potentially Bad Traffic'],
-        'action': 'block',
-        'block_duration': 3600,
-        'threshold': None,
-    },
-    'nmap_scan': {
-        'keywords': ['ET SCAN', 'nmap', 'NMAP', 'portscan', 'port scan',
-                     'Nmap Scripting', 'OS Detection', 'SYN Stealth',
-                     'NULL Scan', 'XMAS', 'FIN Scan', 'ACK Scan',
-                     'UDP Scan', 'Masscan', 'masscan', 'zmap'],
-        'categories': ['Detection of a Network Scan', 'Network Scan'],
-        'action': 'block',
-        'block_duration': 3600,
-        'threshold': None,   # Her tespitten sonra engelle
     },
     'info_leak': {
         'keywords': ['ET INFO', 'ET HUNTING','ET POLICY', 'Information Leak', 'reconnaissance'],
@@ -224,18 +224,25 @@ class AlertMonitor:
         sig_def = SIGNATURES.get(sig_name, {})
         action  = sig_def.get('action', 'log')
 
+        # Teşhis Logu
+        logger.info(f"🔍 [KARAR] IP: {src_ip} | Kategori: {sig_name} | Aksiyon: {action} | Sev: {severity}")
+
         # Severity 1-2 veya action=block ise engelle
         if action == 'block' or severity <= 2:
             # Threshold kontrolü
             if not self._threshold_ok(src_ip, sig_name, sig_def):
+                logger.info(f"⏳ [EŞİK] {src_ip} henüz limit aşılmadı, bekliyor.")
                 return
 
+            logger.info(f"🚀 [TETİKLENDİ] {src_ip} engelleniyor...")
             self.blocker.block_ip(
                 src_ip,
                 reason   = f"{sig_name} | {signature[:80]}",
                 duration = sig_def.get('block_duration', CONFIG['blocking']['block_duration']),
                 permanent= sig_def.get('permanent', False),
             )
+        else:
+            logger.info(f"📝 [LOG] {src_ip} için sadece loglama yapıldı (Aksiyon: {action})")
 
     def _handle_anomaly(self, ev: dict):
         src_ip = ev.get('src_ip', '')

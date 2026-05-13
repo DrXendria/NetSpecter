@@ -111,13 +111,13 @@ class IPBlocker:
             from database import get_whitelist
             db_wl = [r['ip'] for r in get_whitelist()]
             if ip in db_wl or ip == '0.0.0.0' or ip == '255.255.255.255':
-                logger.debug(f"Veritabanı Whitelist'te, atlandı: {ip}")
+                logger.info(f"🛡️  BEYAZ LİSTE: {ip} veritabanı listesinde olduğu için engelleme atlandı.")
                 return False
         except Exception:
             pass
 
         if ip in self.whitelist:
-            logger.debug(f"Statik Whitelist'te, atlandı: {ip}")
+            logger.info(f"🛡️  BEYAZ LİSTE: {ip} statik listede (config.py) olduğu için engelleme atlandı.")
             return False
 
         # Kullanıcı isteği: Tüm engellemeler Dashboard'dan kaldırılana kadar kalıcı olacak
@@ -131,13 +131,15 @@ class IPBlocker:
                 permanent = True
 
             if ip in self.blocked_ips:
-                if permanent and not self.blocked_ips[ip].get('permanent'):
-                    self.blocked_ips[ip]['permanent'] = True
-                    logger.warning(f"[KALICI ENGEL] {ip} — {reason}")
+                logger.info(f"ℹ️  [ZATEN ENGELLİ] {ip} hafızada var, iptables kuralı tazeleniyor.")
+                if CONFIG['blocking']['enabled']:
+                    self._insert_drop(ip)
                 return True
 
             if CONFIG['blocking']['enabled']:
                 self._insert_drop(ip)
+            else:
+                logger.info(f"🛡️  [IDS MODU] {ip} engellenmedi, sadece loglandı (blocking.enabled=False)")
 
             self.blocked_ips[ip] = {
                 'time':      time.time(),
