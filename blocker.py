@@ -218,6 +218,29 @@ class IPBlocker:
                 'blocked_list':      list(self.blocked_ips.keys()),
             }
 
+    def sync_with_db(self):
+        """Dashboard'dan (veritabanından) kaldırılan engelleri hafızadan ve iptables'dan temizle"""
+        try:
+            from database import get_active_blocks
+            active_blocks = get_active_blocks()
+            db_ips = {b['ip'] for b in active_blocks}
+
+            with self.lock:
+                # Hafızada olup veritabanında olmayanları bul (Dashboard'dan silinmiş demektir)
+                to_sync_remove = [ip for ip in self.blocked_ips if ip not in db_ips]
+                
+                for ip in to_sync_remove:
+                    logger.info(f"🔄 [SYNC] {ip} Dashboard üzerinden kaldırılmış, hafıza temizleniyor.")
+                    # unblock_ip kilit içindeyken çağrılmamalı (deadlock riski), 
+                    # ama burada zaten kilit altındayız. unblock_ip'yi kilit dışına çıkaralım veya doğrudan temizleyelim.
+                    
+            # Kilitten çıkıp temizliği yapalım
+            for ip in to_sync_remove:
+                self.unblock_ip(ip)
+
+        except Exception as e:
+            logger.error(f"Veritabanı senkronizasyon hatası: {e}")
+
     # ------------------------------------------------------------------ #
     #  Yardımcı fonksiyonlar                                              #
     # ------------------------------------------------------------------ #

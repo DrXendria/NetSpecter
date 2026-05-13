@@ -219,6 +219,7 @@ class IDSIPSSystem:
             (CONFIG['report_interval'],      lambda: self.reporter.generate_report(
                                                  self.blocker.get_stats()), "Rapor"),
             (CONFIG['cleanup_interval'],     self.blocker.cleanup_expired_blocks, "Temizlik"),
+            (10,                             self.blocker.sync_with_db,           "DB Senkronize"),
         ]
         for interval, fn, name in threads:
             t = threading.Thread(target=self._periodic, args=(interval, fn, name), daemon=True)
