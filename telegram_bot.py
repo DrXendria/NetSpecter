@@ -5,7 +5,7 @@ Eve.json'u izler, kritik olaylarda Telegram'a mesaj gönderir.
 
 Kurulum:
   pip3 install requests --break-system-packages
-  nano /opt/netspecter/telegram_bot.py  (BOT_TOKEN ve CHAT_ID girin)
+  nano /opt/netspecter/.env  (TELEGRAM_BOT_TOKEN ve TELEGRAM_CHAT_ID girin)
   sudo python3 /opt/netspecter/telegram_bot.py
 
 Bot Token almak için: Telegram'da @BotFather → /newbot
@@ -23,6 +23,10 @@ from collections import defaultdict, deque
 
 import requests
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, '/opt/netspecter')
+from monitor import classify, is_noisy  # tek sınıflandırma kaynağı
 
 
 def load_env(env_path: str = None):
@@ -91,38 +95,6 @@ ATTACK_EMOJIS = {
     'info_leak':        '📡',
     'unknown':          '⚠️',
 }
-
-
-def classify(signature: str, category: str, dest_port: int = 0) -> str:
-    sig_l = signature.lower()
-    cat_l = category.lower()
-    mapping = {
-        'brute_force_ssh':  ['ssh scan', 'ssh brute', 'potential ssh', 'ssh login', 'et scan.*ssh', 'invalid user', 'invalid banner', 'banner mismatch', 'ssh.*fail', 'ssh.*error', 'ssh.*invalid', 'ssh client'],
-        'brute_force_ftp':  ['ftp brute', 'ftp login', 'ftp.*fail', 'ftp.*error', 'invalid password', 'invalid user', 'anonymous ftp'],
-        'brute_force_http': ['http brute', 'web brute', 'credential stuffing', 'password spray', 'nikto', 'dirb', 'gobuster', 'wfuzz', 'dirbuster', 'sqlmap', 'hydra', 'ffuf', 'feroxbuster', 'wpscan', 'joomscan', 'zap', 'burp', 'acunetix', 'nessus', 'openvas', 'arachni'],
-        'dos_attack':       ['et dos', 'dos', 'ddos', 'flood', 'denial of service', 'attempted denial of service'],
-        'exploit':          ['et exploit', 'exploit', 'shellcode', 'buffer overflow', 'remote code execution', 'rce', 'cve-', 'command injection', 'sql injection', 'path traversal', 'directory traversal', 'lfi', 'rfi', 'ssrf', 'xxe'],
-        'malware':          ['et malware', 'et trojan', 'malware', 'trojan', 'botnet', 'c2', 'command and control', 'backdoor', 'ransomware', 'rootkit', 'dropper', 'downloader'],
-        'web_attack':       ['et web_server', 'et web_specific', 'web attack', 'xss', 'csrf', 'web shell', 'webshell', 'scanner', 'applayer detect', 'http host header', 'gpl web_server', 'gpl sql_injection'],
-        'nmap_scan':        ['et scan', 'nmap', 'portscan', 'port scan', 'os detection', 'syn stealth', 'null scan', 'xmas', 'fin scan', 'ack scan', 'udp scan', 'masscan', 'zmap'],
-        'info_leak':        ['et info','et hunting','et policy', 'information leak', 'reconnaissance'],
-    }
-    import re
-    for attack, keywords in mapping.items():
-        for kw in keywords:
-            try:
-                if re.search(kw, sig_l) or re.search(kw, cat_l):
-                    return attack
-            except re.error:
-                if kw in sig_l or kw in cat_l:
-                    return attack
-
-    if dest_port:
-        if dest_port == 22: return 'brute_force_ssh'
-        if dest_port == 21: return 'brute_force_ftp'
-        if dest_port in (80, 443, 8080, 8443): return 'web_attack'
-
-    return 'unknown'
 
 
 def send_telegram(text: str) -> bool:
@@ -201,8 +173,7 @@ class TelegramNotifier:
         category   = alert.get('category', '')
         severity   = alert.get('severity', 4)
 
-        noisy_keywords = ['Python SimpleHTTP ServerBanner', 'Kali Linux hostname in DHCP', 'Telegram API Domain', 'Spotify']
-        if any(noise.lower() in signature.lower() for noise in noisy_keywords):
+        if is_noisy(signature):
             return
 
         attack_type = classify(signature, category, dest_port)
@@ -295,10 +266,10 @@ def watch_eve(notifier: TelegramNotifier):
 
 def check_config():
     errors = []
-    if BOT_TOKEN == 'BURAYA_BOT_TOKEN':
-        errors.append('BOT_TOKEN girilmemiş!')
-    if CHAT_ID == 'BURAYA_CHAT_ID':
-        errors.append('CHAT_ID girilmemiş!')
+    if not BOT_TOKEN or BOT_TOKEN in ('BURAYA_BOT_TOKEN', 'your_bot_token_here'):
+        errors.append('TELEGRAM_BOT_TOKEN girilmemiş!')
+    if not CHAT_ID or CHAT_ID in ('BURAYA_CHAT_ID', 'your_chat_id_here'):
+        errors.append('TELEGRAM_CHAT_ID girilmemiş!')
     return errors
 
 
@@ -341,7 +312,7 @@ if __name__ == '__main__':
         print('HATA — Yapılandırma eksik:')
         for e in errors:
             print(f'  ✗ {e}')
-        print('\ntelegram_bot.py dosyasını açıp BOT_TOKEN ve CHAT_ID değerlerini girin.')
+        print('\n.env dosyasına TELEGRAM_BOT_TOKEN ve TELEGRAM_CHAT_ID değerlerini girin.')
         print('\nBot Token için: Telegram → @BotFather → /newbot')
         print('Chat ID için:   Telegram → @userinfobot')
         sys.exit(1)

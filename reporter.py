@@ -69,7 +69,7 @@ class ReportGenerator:
         from database import get_ip_report_data
         try:
             data = get_ip_report_data(ip)
-            filename = self._get_filename(f"attack_report_{ip.replace('.','_')}")
+            filename = self._get_filename(f"attack_report_{ip.replace('.','_').replace(':','_')}")
             
             # PDF Başlığını set ediyoruz (Tarayıcıda görünmesi için)
             doc_title = f"{ip} Saldırı Raporu"
@@ -180,5 +180,14 @@ class ReportGenerator:
         try:
             with open(path, 'w') as f:
                 json.dump({'timestamp': datetime.now().isoformat(), 'stats': stats}, f, indent=2)
+            return path
         except Exception as e:
             logger.error(f"JSON Rapor hatası: {e}")
+            return None
+
+    def generate_report(self, stats: dict):
+        """Periyodik / kapanış raporu (ids_ips.py tarafından çağrılır)."""
+        path = self.generate_json_report(stats)
+        if path:
+            logger.info(f"Periyodik rapor oluşturuldu: {path}")
+        return path

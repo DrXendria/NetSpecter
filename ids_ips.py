@@ -37,6 +37,14 @@ class IDSIPSSystem:
     def __init__(self):
         self.suricata_proc = None
         self.running       = False
+
+        # Veritabanı şemasını hazırla / eski kurulumları migrate et
+        try:
+            from database import init_db
+            init_db()
+        except Exception as e:
+            logger.error(f"Veritabanı başlatılamadı (engeller kalıcı olmayacak): {e}")
+
         self.blocker       = IPBlocker()
         self.monitor       = AlertMonitor(self.blocker)
         self.reporter      = ReportGenerator()
@@ -184,7 +192,10 @@ class IDSIPSSystem:
         logger.info("Sistem kapatılıyor...")
         self.running = False
         self.stop_suricata()
-        self.reporter.generate_report(self.blocker.get_stats())
+        try:
+            self.reporter.generate_report(self.blocker.get_stats())
+        except Exception as e:
+            logger.error(f"Kapanış raporu oluşturulamadı: {e}")
         logger.info("IDS/IPS sistemi kapatıldı.")
         sys.exit(0)
 

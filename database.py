@@ -13,6 +13,7 @@ Kurulum:
 """
 
 import os
+import hmac
 import hashlib
 import secrets
 import MySQLdb
@@ -117,16 +118,34 @@ SCHEMA = [
 ]
 
 
+def _ensure_column(cur, table: str, column: str, ddl: str):
+    """Eski kurulumlar için eksik kolonu ekler (MySQL & MariaDB uyumlu)."""
+    cur.execute(
+        """SELECT COUNT(*) AS c FROM information_schema.COLUMNS
+           WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = %s""",
+        (table, column)
+    )
+    if cur.fetchone()['c'] == 0:
+        cur.execute(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}")
+
+
 def init_db():
     with get_conn() as conn:
         with conn.cursor() as cur:
             for stmt in SCHEMA:
                 cur.execute(stmt)
+            # Migration: süreli / kalıcı engel desteği
+            _ensure_column(cur, 'blocked_ips', 'permanent',  'TINYINT(1) NOT NULL DEFAULT 1')
+            _ensure_column(cur, 'blocked_ips', 'expires_at', 'DATETIME DEFAULT NULL')
 
-    # Varsayılan admin
+    # Varsayılan admin (şifre .env → DASHBOARD_ADMIN_PASSWORD, yoksa 'netspecter')
     if not get_user('admin'):
-        create_user('admin', 'netspecter')
-        print('[DB] Varsayılan admin oluşturuldu. (admin / netspecter)')
+        admin_pass = os.getenv('DASHBOARD_ADMIN_PASSWORD') or 'netspecter'
+        create_user('admin', admin_pass)
+        if admin_pass == 'netspecter':
+            print('[DB] Varsayılan admin oluşturuldu. (admin / netspecter) — LÜTFEN DEĞİŞTİRİN!')
+        else:
+            print('[DB] Admin kullanıcısı .env içindeki DASHBOARD_ADMIN_PASSWORD ile oluşturuldu.')
 
     # Varsayılan whitelist girişleri
     for ip, desc in [('127.0.0.1', 'Localhost'), ('::1', 'Localhost IPv6')]:
@@ -140,8 +159,27 @@ def init_db():
 
 # ── KULLANICI YÖNETİMİ ───────────────────────────────────────────────────
 
+PBKDF2_ITERATIONS = 200_000
+PBKDF2_PREFIX     = 'pbkdf2_sha256'
+
+
 def _hash_password(password: str, salt: str) -> str:
-    return hashlib.sha256((salt + password).encode()).hexdigest()
+    """PBKDF2-HMAC-SHA256 ile hash üretir. Format: pbkdf2_sha256$<iter>$<hex>"""
+    dk = hashlib.pbkdf2_hmac('sha256', password.encode(), salt.encode(), PBKDF2_ITERATIONS)
+    return f'{PBKDF2_PREFIX}${PBKDF2_ITERATIONS}${dk.hex()}'
+
+
+def _check_password(password: str, salt: str, stored: str) -> bool:
+    if stored.startswith(PBKDF2_PREFIX + '$'):
+        try:
+            _, iters, hexdigest = stored.split('$', 2)
+            dk = hashlib.pbkdf2_hmac('sha256', password.encode(), salt.encode(), int(iters))
+            return hmac.compare_digest(dk.hex(), hexdigest)
+        except ValueError:
+            return False
+    # Eski (v2.0) format: sha256(salt + password)
+    legacy = hashlib.sha256((salt + password).encode()).hexdigest()
+    return hmac.compare_digest(legacy, stored)
 
 
 def create_user(username: str, password: str) -> bool:
@@ -166,11 +204,29 @@ def get_user(username: str) -> dict | None:
             return cur.fetchone()
 
 
+def _set_password(username: str, password: str):
+    salt = secrets.token_hex(16)
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE users SET password_hash=%s, salt=%s WHERE username=%s",
+                (_hash_password(password, salt), salt, username)
+            )
+
+
 def verify_user(username: str, password: str) -> bool:
     user = get_user(username)
     if not user:
         return False
-    return user['password_hash'] == _hash_password(password, user['salt'])
+    if not _check_password(password, user['salt'], user['password_hash']):
+        return False
+    # Eski formatta saklanan şifreyi PBKDF2'ye yükselt
+    if not user['password_hash'].startswith(PBKDF2_PREFIX + '$'):
+        try:
+            _set_password(username, password)
+        except Exception:
+            pass
+    return True
 
 
 def change_username(old_username: str, new_username: str, password: str) -> tuple[bool, str]:
@@ -190,14 +246,9 @@ def change_username(old_username: str, new_username: str, password: str) -> tupl
 def change_password(username: str, old_password: str, new_password: str) -> tuple[bool, str]:
     if not verify_user(username, old_password):
         return False, 'Mevcut şifre hatalı'
-    salt = secrets.token_hex(16)
-    password_hash = _hash_password(new_password, salt)
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                "UPDATE users SET password_hash=%s, salt=%s WHERE username=%s",
-                (password_hash, salt, username)
-            )
+    if len(new_password) < 8:
+        return False, 'Yeni şifre en az 8 karakter olmalı'
+    _set_password(username, new_password)
     return True, 'Şifre değiştirildi'
 
 
@@ -250,7 +301,7 @@ def get_alert_stats() -> dict:
 def get_cli_stats() -> dict:
     with get_conn() as conn:
         with conn.cursor() as cur:
-            cur.execute("SELECT COUNT(*) as c, SUM(IF(reason LIKE '%permanent%' OR attack_type='dos_attack', 1, 0)) as p FROM blocked_ips WHERE unblocked_at IS NULL")
+            cur.execute("SELECT COUNT(*) as c, SUM(IF(permanent = 1, 1, 0)) as p FROM blocked_ips WHERE unblocked_at IS NULL")
             res = cur.fetchone()
             blocked_count = res['c'] or 0
             permanent_count = res['p'] or 0
@@ -270,7 +321,10 @@ def get_cli_stats() -> dict:
                 'top_violations': top_violations
             }
 
-def save_block(ip: str, reason: str, attack_type: str) -> int:
+def save_block(ip: str, reason: str, attack_type: str,
+               permanent: bool = True, duration: int | None = None) -> int:
+    """Aktif engeli kaydeder. permanent=False ise expires_at = NOW() + duration."""
+    expires_in = None if (permanent or not duration) else int(duration)
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -278,9 +332,11 @@ def save_block(ip: str, reason: str, attack_type: str) -> int:
                 (ip,)
             )
             cur.execute(
-                """INSERT INTO blocked_ips (ip, reason, attack_type)
-                   VALUES (%s, %s, %s)""",
-                (ip, reason, attack_type)
+                """INSERT INTO blocked_ips (ip, reason, attack_type, permanent, expires_at)
+                   VALUES (%s, %s, %s, %s,
+                           IF(%s IS NULL, NULL, NOW() + INTERVAL %s SECOND))""",
+                (ip, reason, attack_type, 1 if expires_in is None else 0,
+                 expires_in, expires_in or 0)
             )
             return conn.insert_id()
 

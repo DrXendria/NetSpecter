@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================================
-# NetSpecter IDS/IPS Kurulum Scripti v2
+# NetSpecter IDS/IPS Kurulum Scripti v2.1
 # ============================================================
 set -e
  
@@ -12,14 +12,15 @@ info() { echo -e "${YELLOW}[*]${NC} $1"; }
 [[ $EUID -ne 0 ]] && err "Root gerekli: sudo bash install.sh"
  
 echo "============================================================"
-echo "       NetSpecter IDS/IPS Kurulumu v2"
+echo "       NetSpecter IDS/IPS Kurulumu v2.1"
 echo "============================================================"
  
 # ── 1. Paketler ────────────────────────────────────────────────────────
 info "Paketler kuruluyor..."
 apt-get update -qq
-apt-get install -y suricata suricata-update iptables python3 \
-    net-tools iproute2 -qq
+apt-get install -y -qq suricata suricata-update iptables python3 python3-pip \
+    net-tools iproute2 mariadb-server python3-dev default-libmysqlclient-dev \
+    build-essential pkg-config fonts-dejavu-core
 ok "Paketler hazır."
  
 # ── 2. Dizinler ────────────────────────────────────────────────────────
@@ -29,25 +30,42 @@ ok "Dizinler hazır."
  
 # ── 3. Dosyalar ────────────────────────────────────────────────────────
 info "Dosyalar kopyalanıyor..."
-cp ids_ips.py blocker.py monitor.py reporter.py config.py manager.py /opt/netspecter/
-cp netspecter_cli.py /opt/netspecter/
-# Dashboard ve Telegram bot varsa kopyala
+cp ids_ips.py blocker.py monitor.py reporter.py config.py manager.py \
+   database.py netspecter_cli.py test_system.py /opt/netspecter/
 [[ -f dashboard.py ]]     && cp dashboard.py /opt/netspecter/
 [[ -f telegram_bot.py ]]  && cp telegram_bot.py /opt/netspecter/
-# Templates
+[[ -f .env.example ]]     && cp .env.example /opt/netspecter/
 [[ -d templates ]] && { mkdir -p /opt/netspecter/templates; cp templates/*.html /opt/netspecter/templates/; }
-# .env varsa kopyala
-[[ -f .env ]] && cp .env /opt/netspecter/.env
+
+# .env: kaynakta varsa onu kullan, yoksa mevcut olanı koru, o da yoksa şablondan oluştur
+ENV_FILE=/opt/netspecter/.env
+if [[ -f .env ]]; then
+    cp .env "$ENV_FILE"
+elif [[ ! -f "$ENV_FILE" && -f .env.example ]]; then
+    cp .env.example "$ENV_FILE"
+fi
+touch "$ENV_FILE"
+chmod 600 "$ENV_FILE"
 chmod +x /opt/netspecter/ids_ips.py /opt/netspecter/manager.py
 ok "Dosyalar: /opt/netspecter/"
- 
+
+# .env yardımcıları
+get_env() { grep -E "^$1=" "$ENV_FILE" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d '\r'; }
+set_env() {
+    if grep -qE "^$1=" "$ENV_FILE"; then
+        sed -i "s|^$1=.*|$1=$2|" "$ENV_FILE"
+    else
+        echo "$1=$2" >> "$ENV_FILE"
+    fi
+}
+
 # ── 4. Arayüz tespiti ──────────────────────────────────────────────────
-IFACE=$(ip route show default 2>/dev/null | awk '/dev/{print $5}' | head -1)
+IFACE=$(ip route show default 2>/dev/null | awk '/dev/{for(i=1;i<=NF;i++) if($i=="dev"){print $(i+1); exit}}')
 [[ -z "$IFACE" ]] && IFACE="eth0"
 info "Tespit edilen arayüz: $IFACE"
-sed -i "s/_detect_interface()/'$IFACE'  # auto-detected/" \
-    /opt/netspecter/config.py 2>/dev/null || true
- 
+sed -i -E "s/('interface':[[:space:]]*)'[^']*'/\1'$IFACE'/" /opt/netspecter/config.py
+ok "config.py → interface = $IFACE"
+
 # ── 5. Suricata eve.json yapılandırması ───────────────────────────────
 info "Suricata eve.json ayarlanıyor..."
 SCONF="/etc/suricata/suricata.yaml"
@@ -103,7 +121,8 @@ info "Systemd servisi kuruluyor..."
 cat > /etc/systemd/system/netspecter.service << EOF
 [Unit]
 Description=NetSpecter IDS/IPS System
-After=network.target
+After=network.target mariadb.service mysql.service
+Wants=mariadb.service
  
 [Service]
 Type=simple
@@ -138,8 +157,44 @@ ok "netspecter-manager komutu kuruldu."
  
 # Python bağımlılıkları
 info "Python bağımlılıkları kuruluyor..."
-pip3 install flask flask-socketio requests --break-system-packages -q
+pip3 install flask flask-socketio requests mysqlclient reportlab --break-system-packages -q
 ok "Python bağımlılıkları hazır."
+
+# ── MySQL / MariaDB ───────────────────────────────────────────────────
+info "Veritabanı hazırlanıyor..."
+systemctl enable --now mariadb >/dev/null 2>&1 || systemctl enable --now mysql >/dev/null 2>&1 || true
+
+DB_NAME=$(get_env DB_NAME); DB_NAME=${DB_NAME:-netspecter}
+DB_USER=$(get_env DB_USER); DB_USER=${DB_USER:-netspecter}
+DB_PASSWORD=$(get_env DB_PASSWORD)
+if [[ -z "$DB_PASSWORD" || "$DB_PASSWORD" == "CHANGE_ME" || "$DB_PASSWORD" == "netspecter" ]]; then
+    DB_PASSWORD=$(python3 -c "import secrets; print(secrets.token_hex(16))")
+    info "Rastgele veritabanı şifresi üretildi (.env'e yazıldı)."
+fi
+set_env DB_HOST "$(get_env DB_HOST | grep . || echo localhost)"
+set_env DB_PORT "$(get_env DB_PORT | grep . || echo 3306)"
+set_env DB_NAME "$DB_NAME"
+set_env DB_USER "$DB_USER"
+set_env DB_PASSWORD "$DB_PASSWORD"
+
+SQL_PASS=${DB_PASSWORD//\'/\'\'}
+mysql <<SQL
+CREATE DATABASE IF NOT EXISTS \`$DB_NAME\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER IF NOT EXISTS '$DB_USER'@'localhost' IDENTIFIED BY '$SQL_PASS';
+ALTER USER '$DB_USER'@'localhost' IDENTIFIED BY '$SQL_PASS';
+GRANT ALL PRIVILEGES ON \`$DB_NAME\`.* TO '$DB_USER'@'localhost';
+FLUSH PRIVILEGES;
+SQL
+
+# Dashboard admin şifresi
+NEW_ADMIN_PASS=""
+if [[ -z "$(get_env DASHBOARD_ADMIN_PASSWORD)" ]]; then
+    NEW_ADMIN_PASS=$(python3 -c "import secrets; print(secrets.token_urlsafe(12))")
+    set_env DASHBOARD_ADMIN_PASSWORD "$NEW_ADMIN_PASS"
+fi
+
+( cd /opt/netspecter && python3 database.py ) || info "Veritabanı başlatma uyarı verdi, lütfen kontrol edin."
+ok "Veritabanı hazır: $DB_NAME"
  
 # ── 10. Logrotate ─────────────────────────────────────────────────────
 cat > /etc/logrotate.d/netspecter << 'EOF'
@@ -162,6 +217,13 @@ echo ""
 echo "  Arayüz  : $IFACE"
 echo "  Eve log  : /var/log/suricata/eve.json"
 echo "  IDS log  : /var/log/netspecter/system.log"
+echo "  Dashboard: http://<bu-cihazin-ip>:5000"
+if [[ -n "$NEW_ADMIN_PASS" ]]; then
+echo ""
+echo "  Dashboard girişi:  admin / $NEW_ADMIN_PASS"
+echo "  (Şifre /opt/netspecter/.env içinde DASHBOARD_ADMIN_PASSWORD olarak saklanır."
+echo "   Dashboard → Ayarlar sayfasından değiştirebilirsiniz.)"
+fi
 echo ""
 echo "  ÖNEMLİ: config.py dosyasını açın ve whitelist'e"
 echo "  kendi IP adresinizi ekleyin, yoksa kendinizi de"
@@ -170,8 +232,7 @@ echo ""
 echo "  nano /opt/netspecter/config.py"
 echo ""
 echo "  Başlatmak için:"
-echo "    sudo systemctl start netspecter"
-echo "    sudo journalctl -u netspecter -f"
+echo "    sudo netspecter"
 echo ""
 echo "  Yönetim:"
 echo "    sudo netspecter-manager list"

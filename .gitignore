@@ -137,6 +137,7 @@ celerybeat.pid
 # Environments
 .env
 .envrc
+.flask_secret
 .venv
 env/
 venv/

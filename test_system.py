@@ -66,12 +66,15 @@ check(r.returncode == 0, msg, "IDS_IPS zinciri kurulamadı!")
 # 4. Python modülleri
 print("\n=== 4. Python modülleri ===")
 sys.path.insert(0, '/opt/netspecter'); sys.path.insert(0, '.')
-for mod in ['config', 'blocker', 'monitor', 'reporter']:
+for mod in ['config', 'blocker', 'monitor', 'reporter', 'manager', 'database']:
     try:
         if mod in sys.modules: del sys.modules[mod]
         __import__(mod); ok(f"  {mod}.py import OK")
     except ImportError as e:
-        fail(f"  {mod}.py import HATA: {e}"); errors += 1
+        if mod == 'database':
+            info(f"  database.py import uyarısı (mysqlclient kurulu mu?): {e}")
+        else:
+            fail(f"  {mod}.py import HATA: {e}"); errors += 1
 
 # 5. IPBlocker testi
 print("\n=== 5. IPBlocker testi ===")

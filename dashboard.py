@@ -15,10 +15,18 @@ from datetime import datetime
 from collections import deque
 from pathlib import Path
 
+import secrets
+import ipaddress
+
+sys.path.insert(0, '/opt/netspecter')
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
 from flask import Flask, render_template, jsonify, request, session, redirect, url_for, send_file
 from functools import wraps
 from flask_socketio import SocketIO, emit
 from reporter import ReportGenerator
+from monitor import classify, is_noisy          # tek sınıflandırma kaynağı
+from blocker import valid_ip, remove_drop_rules
 try:
     from database import (
         verify_user, get_alerts, get_active_blocks,
@@ -30,17 +38,57 @@ except ImportError as e:
     print("[UYARI] Sistem JSON/Bellek fallback modunda çalışacak.")
     DB_ENABLED = False
 
-sys.path.insert(0, '/opt/netspecter')
-sys.path.insert(0, '.')
+
+def _load_secret_key() -> str:
+    """FLASK_SECRET_KEY (.env) → yoksa kalıcı rastgele anahtar dosyası oluştur."""
+    key = os.getenv('FLASK_SECRET_KEY')
+    if key:
+        return key
+    base = Path('/opt/netspecter') if Path('/opt/netspecter').is_dir() else Path(__file__).resolve().parent
+    key_file = base / '.flask_secret'
+    try:
+        if key_file.exists():
+            return key_file.read_text().strip()
+        key = secrets.token_hex(32)
+        key_file.write_text(key)
+        os.chmod(key_file, 0o600)
+        return key
+    except OSError:
+        # Yazılamıyorsa her başlatmada yeni anahtar (oturumlar yeniden başlatmada düşer)
+        return secrets.token_hex(32)
+
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'netspecter-dashboard-2024-secure'
+app.config['SECRET_KEY'] = _load_secret_key()
 app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 
-# Giriş bilgileri — değiştirmeniz önerilir
+# DB yoksa kullanılan yedek giriş bilgileri (.env → DASHBOARD_ADMIN_PASSWORD)
 DASHBOARD_USER = 'admin'
-DASHBOARD_PASS = 'netspecter'
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
+DASHBOARD_PASS = os.getenv('DASHBOARD_ADMIN_PASSWORD') or 'netspecter'
+
+# cors_allowed_origins=None → yalnızca aynı origin (cross-site WebSocket engellenir)
+socketio = SocketIO(app, async_mode='threading')
+
+# Basit login brute-force koruması: IP başına 5 hatalı deneme / 5 dakika
+LOGIN_MAX_FAILS = 5
+LOGIN_WINDOW    = 300
+_login_fails: dict[str, list[float]] = {}
+_login_lock = threading.Lock()
+
+
+def _login_blocked(ip: str) -> bool:
+    now = time.time()
+    with _login_lock:
+        fails = [t for t in _login_fails.get(ip, []) if now - t < LOGIN_WINDOW]
+        _login_fails[ip] = fails
+        return len(fails) >= LOGIN_MAX_FAILS
+
+
+def _login_failed(ip: str):
+    with _login_lock:
+        _login_fails.setdefault(ip, []).append(time.time())
+
 
 def login_required(f):
     @wraps(f)
@@ -58,20 +106,31 @@ def login_page():
 
 @app.route('/login', methods=['POST'])
 def login_post():
-    data = request.get_json()
+    client_ip = request.remote_addr or '?'
+    if _login_blocked(client_ip):
+        return jsonify({'success': False, 'message': 'Too many attempts, try again later.'}), 429
+
+    data = request.get_json(silent=True) or {}
     username = data.get('username', '')
     password = data.get('password', '')
 
-    # DB varsa oradan doğrula, yoksa config'deki bilgilere dön
+    # DB varsa oradan doğrula, yoksa yedek bilgilere dön
     if DB_ENABLED:
-        success = verify_user(username, password)
+        try:
+            success = verify_user(username, password)
+        except Exception as e:
+            print(f"[DB HATA] verify_user başarısız: {e}")
+            success = False
     else:
-        success = (username == DASHBOARD_USER and password == DASHBOARD_PASS)
+        success = secrets.compare_digest(username, DASHBOARD_USER) and \
+                  secrets.compare_digest(password, DASHBOARD_PASS)
 
     if success:
+        session.clear()
         session['logged_in'] = True
         session['username'] = username
         return jsonify({'success': True})
+    _login_failed(client_ip)
     return jsonify({'success': False}), 401
 
 @app.route('/logout')
@@ -176,11 +235,19 @@ def get_blocked_ips():
                 dt = b.get('blocked_at')
                 time_str = dt.strftime('%H:%M:%S') if hasattr(dt, 'strftime') else str(dt)[11:19]
                 
+                permanent = bool(b.get('permanent', 1))
+                expires_at = b.get('expires_at')
+                if permanent or not hasattr(expires_at, 'timestamp'):
+                    remaining = '∞ Kalıcı'
+                else:
+                    secs = int(expires_at.timestamp() - time.time())
+                    remaining = f'{max(0, secs) // 60} dk'
+
                 result.append({
                     'ip':        ip_str,
                     'reason':    (b.get('reason') or '')[:60],
-                    'permanent': True,
-                    'remaining': '∞ Kalıcı',
+                    'permanent': permanent,
+                    'remaining': remaining,
                     'count':     b.get('violation_count', 1),
                     'time':      time_str,
                 })
@@ -229,11 +296,13 @@ def report_daily():
 @app.route('/api/report/ip/<ip>')
 @login_required
 def report_ip(ip):
+    if not valid_ip(ip):
+        return "Geçersiz IP", 400
     try:
         rep = ReportGenerator()
         pdf_path = rep.generate_ip_report(ip)
         if pdf_path and os.path.exists(pdf_path):
-            return send_file(pdf_path, as_attachment=True, download_name=f"saldiri_raporu_{ip.replace('.','_')}.pdf")
+            return send_file(pdf_path, as_attachment=True, download_name=f"saldiri_raporu_{ip.replace('.','_').replace(':','_')}.pdf")
     except Exception as e:
         app.logger.error(f"IP Report Error: {e}")
     return "Rapor oluşturulamadı", 500
@@ -319,6 +388,8 @@ def api_whitelist():
             desc = data.get('description', '').strip()
             if not ip:
                 return jsonify({'success': False, 'message': 'IP boş olamaz'})
+            if not valid_ip(ip):
+                return jsonify({'success': False, 'message': 'Geçersiz IP adresi'})
             success = add_whitelist(ip, desc)
             if success:
                 socketio.emit('stats_update', get_system_stats())
@@ -392,62 +463,28 @@ def api_timeline():
     return jsonify(list(timeline))
 
 
-@app.route('/api/unblock/<ip>', methods=['POST'])
+@app.route('/api/unblock/<path:ip>', methods=['POST'])
 @login_required
 def api_unblock(ip):
-    import subprocess
-    subprocess.run(['iptables', '-D', 'IDS_IPS', '-s', ip, '-j', 'DROP'],
-                   capture_output=True)
-    subprocess.run(['iptables', '-D', 'IDS_IPS', '-s', ip, '-j', 'LOG',
-                    '--log-prefix', f'NETSPECTER_BLOCK:{ip}: '],
-                   capture_output=True)
+    if not valid_ip(ip):
+        return jsonify({'success': False, 'message': 'Geçersiz IP'}), 400
+    remove_drop_rules(ip)
     if DB_ENABLED:
         try:
             save_unblock(ip)
         except Exception:
             pass
+    state_path = '/var/log/netspecter/state.json'
     state = get_state()
     if ip in state.get('blocked_ips', {}):
         del state['blocked_ips'][ip]
-        with open('/var/log/netspecter/state.json', 'w') as f:
+        with open(state_path, 'w') as f:
             json.dump(state, f, indent=2)
     socketio.emit('blocked_update', get_blocked_ips())
     return jsonify({'success': True, 'ip': ip})
 
 
 # ── Eve.json İzleyici ───────────────────────────────────────────────────
-
-def classify_alert(signature: str, category: str, dest_port: int = 0) -> str:
-    sig_l = signature.lower()
-    cat_l = category.lower()
-    mapping = {
-        'brute_force_ssh':  ['ssh scan', 'ssh brute', 'potential ssh', 'ssh login', 'et scan.*ssh', 'invalid user', 'invalid banner', 'banner mismatch', 'ssh.*fail', 'ssh.*error', 'ssh.*invalid', 'ssh client'],
-        'brute_force_ftp':  ['ftp brute', 'ftp login', 'ftp.*fail', 'ftp.*error', 'invalid password', 'invalid user', 'anonymous ftp'],
-        'brute_force_http': ['http brute', 'web brute', 'credential stuffing', 'password spray', 'nikto', 'dirb', 'gobuster', 'wfuzz', 'dirbuster', 'sqlmap', 'hydra', 'ffuf', 'feroxbuster', 'wpscan', 'joomscan', 'zap', 'burp', 'acunetix', 'nessus', 'openvas', 'arachni'],
-        'dos_attack':       ['et dos', 'dos', 'ddos', 'flood', 'denial of service', 'attempted denial of service'],
-        'exploit':          ['et exploit', 'exploit', 'shellcode', 'buffer overflow', 'remote code execution', 'rce', 'cve-', 'command injection', 'sql injection', 'path traversal', 'directory traversal', 'lfi', 'rfi', 'ssrf', 'xxe'],
-        'malware':          ['et malware', 'et trojan', 'malware', 'trojan', 'botnet', 'c2', 'command and control', 'backdoor', 'ransomware', 'rootkit', 'dropper', 'downloader'],
-        'web_attack':       ['et web_server', 'et web_specific', 'web attack', 'xss', 'csrf', 'web shell', 'webshell', 'scanner', 'applayer detect', 'http host header', 'gpl web_server', 'gpl sql_injection'],
-        'nmap_scan':        ['et scan', 'nmap', 'portscan', 'port scan', 'os detection', 'syn stealth', 'null scan', 'xmas', 'fin scan', 'ack scan', 'udp scan', 'masscan', 'zmap'],
-        'info_leak':        ['et info', 'et hunting', 'et policy', 'information leak', 'reconnaissance'],
-    }
-    import re
-    for attack, keywords in mapping.items():
-        for kw in keywords:
-            try:
-                if re.search(kw, sig_l) or re.search(kw, cat_l):
-                    return attack
-            except re.error:
-                if kw in sig_l or kw in cat_l:
-                    return attack
-
-    if dest_port:
-        if dest_port == 22: return 'brute_force_ssh'
-        if dest_port == 21: return 'brute_force_ftp'
-        if dest_port in (80, 443, 8080, 8443): return 'web_attack'
-
-    return 'unknown'
-
 
 def watch_eve():
     eve_path = '/var/log/suricata/eve.json'
@@ -495,11 +532,10 @@ def watch_eve():
                 cat    = alert.get('category', '')
                 sev    = alert.get('severity', 3)
 
-                noisy_keywords = ['Python SimpleHTTP ServerBanner', 'Kali Linux hostname in DHCP', 'Telegram API Domain', 'Spotify']
-                if any(noise.lower() in sig.lower() for noise in noisy_keywords):
+                if is_noisy(sig):
                     continue
 
-                attack_type = classify_alert(sig, cat, ev.get('dest_port', 0))
+                attack_type = classify(sig, cat, ev.get('dest_port', 0))
 
                 alert_obj = {
                     'time':        datetime.now().strftime('%d/%m %H:%M:%S'),

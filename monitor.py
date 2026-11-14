@@ -111,6 +111,71 @@ SIGNATURES = {
     },
 }
 
+# Gürültü üreten, saldırı olmayan imzalar (hiç işlenmez)
+NOISY_KEYWORDS = [
+    'Python SimpleHTTP ServerBanner',
+    'Kali Linux hostname in DHCP',
+    'Telegram API Domain',
+    'Spotify',
+]
+
+
+def is_noisy(signature: str) -> bool:
+    sig_l = signature.lower()
+    return any(noise.lower() in sig_l for noise in NOISY_KEYWORDS)
+
+
+def _match(pattern: str, text: str) -> bool:
+    try:
+        # RCE / DoS / LFI / C2 gibi kısa kısaltmaların kelime ortasında ("Force" → "rce")
+        # eşleşmesini önlemek için tam kelime sınırı kullan
+        rx = rf'\b{pattern}\b' if (pattern.isalnum() and len(pattern) <= 4) else pattern
+        return re.search(rx, text, re.IGNORECASE) is not None
+    except re.error:
+        return pattern.lower() in text.lower()
+
+
+# Spesifik sınıflar (brute force, exploit, malware, web) genel 'ET SCAN' içeren
+# nmap_scan'den önce kontrol edilir; böylece "ET SCAN Potential SSH Scan" gibi
+# imzalar doğru sınıfa düşer.
+_CLASSIFY_ORDER = (
+    'brute_force_ssh',
+    'brute_force_ftp',
+    'brute_force_http',
+    'malware',
+    'exploit',
+    'dos_attack',
+    'web_attack',
+    'nmap_scan',
+    'info_leak',
+)
+
+
+def classify(signature: str, category: str, dest_port: int = 0) -> str:
+    """Suricata imzası/kategorisi/portuna göre saldırı sınıfını döndürür.
+    monitor.py, dashboard.py ve telegram_bot.py bu tek fonksiyonu kullanır."""
+    for name in _CLASSIFY_ORDER:
+        sdef = SIGNATURES[name]
+        if any(_match(kw, signature) for kw in sdef.get('keywords', [])):
+            return name
+        if any(_match(cat, category) for cat in sdef.get('categories', [])):
+            return name
+        # Porta özel sınıflar: anahtar kelime kategori içinde geçiyorsa
+        if dest_port and dest_port in sdef.get('ports', []):
+            if any(_match(kw, category) for kw in sdef.get('keywords', [])):
+                return name
+
+    # Hâlâ bulunamadıysa port numarasına göre varsayılan bir kategori ata
+    if dest_port:
+        if dest_port == 22:
+            return 'brute_force_ssh'
+        if dest_port == 21:
+            return 'brute_force_ftp'
+        if dest_port in (80, 443, 8080, 8443):
+            return 'web_attack'
+
+    return 'unknown'
+
 
 class AlertMonitor:
 
@@ -202,11 +267,10 @@ class AlertMonitor:
         if not src_ip:
             return
 
-        noisy_keywords = ['Python SimpleHTTP ServerBanner', 'Kali Linux hostname in DHCP', 'Telegram API Domain', 'Spotify']
-        if any(noise.lower() in signature.lower() for noise in noisy_keywords):
+        if is_noisy(signature):
             return
 
-        sig_name = self._classify(signature, category, dest_port)
+        sig_name = classify(signature, category, dest_port)
         self.blocker.increment_alert(sig_name)
 
         logger.info(
@@ -257,40 +321,7 @@ class AlertMonitor:
     # ------------------------------------------------------------------ #
 
     def _classify(self, signature: str, category: str, dest_port: int) -> str:
-        for name, sdef in SIGNATURES.items():
-            # Anahtar kelime eşleşmesi (regex destekli)
-            for kw in sdef.get('keywords', []):
-                try:
-                    if re.search(kw, signature, re.IGNORECASE):
-                        return name
-                except re.error:
-                    if kw.lower() in signature.lower():
-                        return name
-            # Kategori eşleşmesi (regex destekli)
-            for cat in sdef.get('categories', []):
-                try:
-                    if re.search(cat, category, re.IGNORECASE):
-                        return name
-                except re.error:
-                    if cat.lower() in category.lower():
-                        return name
-            # Port eşleşmesi (varsa)
-            if dest_port and dest_port in sdef.get('ports', []):
-                if any((kw.lower() in signature.lower() or kw.lower() in category.lower())
-                       for kw in sdef.get('keywords', [])):
-                    return name
-
-        # Eğer hala bulunamadıysa port numarasına göre varsayılan bir kategori atayabiliriz
-        if dest_port:
-            if dest_port == 22:
-                return 'brute_force_ssh'
-            if dest_port == 21:
-                return 'brute_force_ftp'
-            if dest_port in (80, 443, 8080, 8443):
-                # Web portlarına gelen ve unknown kalan uyarıları web saldırısı olarak işaretle
-                return 'web_attack'
-
-        return 'unknown'
+        return classify(signature, category, dest_port)
 
     def _threshold_ok(self, ip: str, sig_name: str, sig_def: dict) -> bool:
         """

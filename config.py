@@ -15,6 +15,9 @@ CONFIG = {
         'enabled': True,
         'block_duration': 3600,             # 1 saat (saniye)
         'permanent_block_threshold': 5,     # 5 ihlal → kalıcı engel
+        # True  → tüm engeller Dashboard/CLI'dan kaldırılana kadar kalıcıdır (varsayılan).
+        # False → saldırı tipine göre süreli engel uygulanır (monitor.py SIGNATURES).
+        'persist_until_manual_unblock': True,
         'whitelist': [
             '127.0.0.1',
             '::1',
